@@ -299,12 +299,11 @@
     return '<div class="' + cls + '"><label>' + F.esc(label) + '</label>' + input + '</div>';
   }
 
-  var setupFor = null;      /* いま作ったばかりの車両（車両情報を先頭に出す） */
+  var setupFor = null;      /* いま作ったばかりの車両（車両情報を開いた状態で出す） */
 
   function renderDetail() {
     var v = Store.selected();
-    var infoFirst = !!v && v.id === setupFor;
-    document.body.classList.toggle('info-first', infoFirst);
+    var isNew = !!v && v.id === setupFor;
     var el = $('#detail');
     if (!v) {
       el.innerHTML = '<div class="emptystate"><h2>車両が選ばれていません</h2>' +
@@ -319,7 +318,7 @@
         '<div class="p">仕入価格　' + F.yen(v.purchasePrice) + '</div></div>' +
 
       '<details class="card no-print" id="vehCard"' +
-        ((window.innerWidth > 760 || infoFirst) ? ' open' : '') + '>' +
+        ((window.innerWidth > 760 || isNew) ? ' open' : '') + '>' +
       '<summary class="card-head"><h3>車両情報</h3><span class="spacer"></span>' +
         '<span class="hint">タップで開閉</span>' +
       '</summary><div class="card-body"><div class="veh-info">' +
