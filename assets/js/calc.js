@@ -19,16 +19,25 @@
       laborCost: 0,       // 人件費 = 自社作業時間 × 時間単価
       purchasePrice: 0,   // 仕入価格
       grandTotal: 0,      // 原価総計
-      rowCount: 0
+      rowCount: 0,
+      firstDate: '',      // いちばん古い作業日
+      lastDate: '',       // いちばん新しい作業日
+      workDays: 0         // 作業した日数（重複なし）
     };
     if (!vehicle) return t;
 
     workers = workers || [];
     workers.forEach(function (w) { t.workerHours[w.id] = 0; });
 
+    var days = {};
     rows.forEach(function (r) {
       if (r.type === 'divider') return;
       t.rowCount++;
+      if (global.F.isISO(r.date)) {
+        days[r.date] = true;
+        if (!t.firstDate || r.date < t.firstDate) t.firstDate = r.date;
+        if (!t.lastDate || r.date > t.lastDate) t.lastDate = r.date;
+      }
       t.partCost += N(r.partCost);
       t.outsourceCost += N(r.outCost);
       t.outsourceHours += N(r.outHours);
@@ -39,6 +48,7 @@
       });
     });
 
+    t.workDays = Object.keys(days).length;
     t.materialCost = t.partCost + t.outsourceCost;
     t.totalHours = t.selfHours + t.outsourceHours;
     t.purchasePrice = N(vehicle.purchasePrice);
@@ -59,6 +69,7 @@
     return {
       id: global.F.uid('r'),
       type: type || 'item',
+      date: '',
       work: '',
       part: '',
       partCost: 0,

@@ -48,6 +48,7 @@
       v.rows.forEach(function (r) {
         if (!r.id) r.id = global.F.uid('r');
         if (!r.type) r.type = 'item';
+        if (r.date == null) r.date = '';
         if (!r.hours || typeof r.hours !== 'object') r.hours = {};
       });
     });

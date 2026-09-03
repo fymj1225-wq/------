@@ -67,7 +67,7 @@
 
   /* ---------------- 明細テーブル ---------------- */
 
-  function colCount() { return 6 + workers().length + 1; }
+  function colCount() { return 7 + workers().length + 1; }
 
   function rowHtml(r, idx) {
     var ws = workers();
@@ -85,6 +85,8 @@
     }).join('');
     return '<tr data-row="' + r.id + '">' +
       '<td class="no">' + idx + '</td>' +
+      '<td class="dt"><input data-f="date" data-kind="date" title="' + F.esc(F.fullDate(r.date)) +
+        '" value="' + F.esc(F.shortDate(r.date)) + '"></td>' +
       '<td><input data-f="work" title="' + F.esc(r.work) + '" value="' + F.esc(r.work) + '"></td>' +
       '<td><input data-f="part" title="' + F.esc(r.part) + '" value="' + F.esc(r.part) + '"></td>' +
       '<td class="num"><input data-f="partCost" data-kind="money" value="' + F.esc(moneyCell(r.partCost)) + '"></td>' +
@@ -103,13 +105,14 @@
 
   function tableHtml(v) {
     var ws = workers();
-    var cols = '<colgroup><col style="width:38px"><col class="w-work"><col class="w-part">' +
+    var cols = '<colgroup><col style="width:38px"><col style="width:64px"><col class="w-work"><col class="w-part">' +
       '<col class="w-money"><col class="w-money">' +
       ws.map(function () { return '<col class="w-hour">'; }).join('') +
       '<col class="w-hour"><col style="width:78px"></colgroup>';
 
     var head = '<thead><tr>' +
       '<th class="no">No</th>' +
+      '<th class="c-date" title="作業した日。9/3・0903・2026/9/3 などで入力できます">作業日</th>' +
       '<th class="c-work">作業名</th>' +
       '<th class="c-part">部品名</th>' +
       '<th class="c-money">部品代</th>' +
@@ -127,7 +130,7 @@
     }).join('') + '</tbody>';
 
     var foot = '<tfoot><tr>' +
-      '<td class="lbl" colspan="3">合計（税込）</td>' +
+      '<td class="lbl" colspan="4">合計（税込）</td>' +
       '<td id="tot-part"></td>' +
       '<td id="tot-out"></td>' +
       ws.map(function (w) { return '<td id="tot-w-' + w.id + '"></td>'; }).join('') +
@@ -141,7 +144,8 @@
   function staticTableHtml(v) {
     var ws = workers();
     var t = Calc.vehicleTotals(v, ws);
-    var head = '<thead><tr><th class="no">No</th><th class="c-work">作業名</th><th class="c-part">部品名</th>' +
+    var head = '<thead><tr><th class="no">No</th><th class="c-date">作業日</th>' +
+      '<th class="c-work">作業名</th><th class="c-part">部品名</th>' +
       '<th class="c-money">部品代</th><th class="c-money">外注費</th>' +
       ws.map(function (w) { return '<th class="c-hour">' + F.esc(w.name) + '</th>'; }).join('') +
       '<th class="c-out">外注</th></tr></thead>';
@@ -153,6 +157,7 @@
       }
       idx++;
       return '<tr><td class="no">' + idx + '</td>' +
+        '<td class="num">' + F.esc(F.shortDate(r.date)) + '</td>' +
         '<td class="tx">' + F.esc(r.work) + '</td>' +
         '<td class="tx">' + F.esc(r.part) + '</td>' +
         '<td class="num">' + F.esc(moneyCell(r.partCost)) + '</td>' +
@@ -162,7 +167,7 @@
         }).join('') +
         '<td class="num">' + F.esc(hourCell(r.outHours)) + '</td></tr>';
     }).join('') + '</tbody>';
-    var foot = '<tfoot><tr><td class="lbl" colspan="3">合計（税込）</td>' +
+    var foot = '<tfoot><tr><td class="lbl" colspan="4">合計（税込）</td>' +
       '<td>' + F.money(t.partCost) + '</td><td>' + F.money(t.outsourceCost) + '</td>' +
       ws.map(function (w) { return '<td>' + (F.hours(t.workerHours[w.id]) || '0') + '</td>'; }).join('') +
       '<td>' + (F.hours(t.outsourceHours) || '0') + '</td></tr></tfoot>';
@@ -270,7 +275,15 @@
     setTot('#tot-outh', t.outsourceHours, F.hours);
 
     var ri = $('#rowInfo');
-    if (ri) ri.textContent = '明細 ' + t.rowCount + ' 行';
+    if (ri) {
+      var txt = '明細 ' + t.rowCount + ' 行';
+      if (t.firstDate) {
+        txt += '　作業日 ' + F.shortDate(t.firstDate) +
+          (t.lastDate !== t.firstDate ? ' 〜 ' + F.shortDate(t.lastDate) : '') +
+          '（実働 ' + t.workDays + ' 日）';
+      }
+      ri.textContent = txt;
+    }
 
     // サイドバーの金額も追随させる
     var card = $('.veh-card[data-veh="' + v.id + '"] .tot');
@@ -341,7 +354,10 @@
     var f = el.dataset.f;
 
     Store.mutate('row:' + r.id + ':' + f, function () {
-      if (f === 'work' || f === 'part') {
+      if (f === 'date') {
+        r.date = F.parseDate(el.value);
+        el.title = F.fullDate(r.date);
+      } else if (f === 'work' || f === 'part') {
         r[f] = el.value;
         el.title = el.value;
       } else if (f.indexOf('h:') === 0) {
@@ -359,6 +375,7 @@
   function onDetailFocusIn(e) {
     var el = e.target;
     if (!el.dataset || !el.dataset.kind) return;
+    if (el.dataset.kind === 'date') { el.select(); return; }
     var n = F.toNum(el.value);
     el.value = n === 0 ? '' : String(n);
     el.select();
@@ -366,6 +383,12 @@
   function onDetailFocusOut(e) {
     var el = e.target;
     if (!el.dataset || !el.dataset.kind) return;
+    if (el.dataset.kind === 'date') {
+      var iso = F.parseDate(el.value);
+      el.value = F.shortDate(iso);
+      el.title = F.fullDate(iso);
+      return;
+    }
     var n = F.toNum(el.value);
     if (el.dataset.kind === 'money') {
       el.value = (el.dataset.v && n === 0) ? '0' : (n === 0 ? '' : F.money(n));
@@ -594,21 +617,21 @@
     L.push(['仕入価格', t.purchasePrice].map(csvEscape).join(','));
     L.push(['時間単価', v.hourlyRate].map(csvEscape).join(','));
     L.push('');
-    L.push(['No', '作業名', '部品名', '部品代', '外注費']
+    L.push(['No', '作業日', '作業名', '部品名', '部品代', '外注費']
       .concat(ws.map(function (w) { return w.name; }))
       .concat(['外注']).map(csvEscape).join(','));
     var i = 0;
     v.rows.forEach(function (r) {
       if (r.type === 'divider') {
-        L.push(['', r.work || '────', '', '', ''].concat(ws.map(function () { return ''; })).concat(['']).map(csvEscape).join(','));
+        L.push(['', '', r.work || '────', '', '', ''].concat(ws.map(function () { return ''; })).concat(['']).map(csvEscape).join(','));
         return;
       }
       i++;
-      L.push([i, r.work, r.part, F.toNum(r.partCost) || '', F.toNum(r.outCost) || '']
+      L.push([i, F.fullDate(r.date), r.work, r.part, F.toNum(r.partCost) || '', F.toNum(r.outCost) || '']
         .concat(ws.map(function (w) { return F.toNum(r.hours && r.hours[w.id]) || ''; }))
         .concat([F.toNum(r.outHours) || '']).map(csvEscape).join(','));
     });
-    L.push(['', '', '合計（税込）', t.partCost, t.outsourceCost]
+    L.push(['', '', '', '合計（税込）', t.partCost, t.outsourceCost]
       .concat(ws.map(function (w) { return t.workerHours[w.id]; }))
       .concat([t.outsourceHours]).map(csvEscape).join(','));
     L.push('');
