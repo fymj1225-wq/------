@@ -1,0 +1,16 @@
+{
+  "name": "レストア原価管理",
+  "short_name": "原価管理",
+  "description": "車両レストアの原価を車両ごとに管理する",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08090b",
+  "theme_color": "#0a0b0e",
+  "lang": "ja",
+  "icons": [
+    { "src": "assets/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

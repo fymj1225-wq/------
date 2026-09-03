@@ -79,6 +79,7 @@
     } catch (e) {
       if (Store.onSaved) Store.onSaved(false, e);
     }
+    if (global.Sync) global.Sync.markDirty(Store);
   };
 
   Store.save = function () {

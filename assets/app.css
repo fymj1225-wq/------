@@ -68,7 +68,23 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
   border-left:1px solid var(--line);padding-left:9px;
 }
 .topbar .spacer{flex:1}
-.topbar .saved{font-size:10.5px;color:var(--ink-weak);min-width:88px;text-align:right;font-family:var(--mono)}
+.topbar .saved{
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  font-size:10.5px;color:var(--ink-weak);padding:4px 9px;border-radius:999px;
+  border:1px solid transparent;transition:border-color .14s,background .14s;white-space:nowrap;
+}
+.topbar .saved:hover{border-color:var(--line);background:#15181c}
+.topbar .saved .dot{width:7px;height:7px;border-radius:50%;background:#4a515c;flex:0 0 auto}
+.topbar .saved.ok .dot{background:var(--teal);box-shadow:0 0 8px rgba(63,185,160,.7)}
+.topbar .saved.busy .dot{background:var(--accent);box-shadow:0 0 8px rgba(255,138,61,.7);animation:pulse 1.1s ease-in-out infinite}
+.topbar .saved.warn .dot{background:var(--danger);box-shadow:0 0 8px rgba(255,106,90,.7)}
+.topbar .saved.warn{color:#ff9d92}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+.kv{margin:0;display:flex;flex-direction:column;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:10px;overflow:hidden}
+.kv div{display:flex;justify-content:space-between;gap:12px;background:var(--panel);padding:9px 12px}
+.kv dt{font-size:11px;color:var(--ink-weak);letter-spacing:.08em}
+.kv dd{margin:0;font-size:12.5px;font-weight:600}
 .topbar .search.top{
   width:200px;background:#101317;border:1px solid #23272e;color:var(--ink);
   padding:6px 10px;border-radius:8px;transition:border-color .15s,background .15s;
@@ -392,7 +408,10 @@ table.cost tfoot td.zero{color:#4d545e;font-weight:400}
 
   .topbar{position:sticky;top:0;z-index:40;flex-wrap:wrap;padding:8px 11px;gap:7px;background:rgba(9,10,13,.95)}
   .topbar .brand b{font-size:13.5px}
-  .topbar .brand span,.topbar .saved{display:none}
+  .topbar .brand span{display:none}
+  .topbar .saved{padding:6px;gap:0;border-color:var(--line);background:#15181c}
+  .topbar .saved .t{display:none}
+  .topbar .saved .dot{width:9px;height:9px}
   .topbar .lbl{display:none}
   .topbar .search.top{width:100%;order:9;font-size:16px;padding:9px 11px}
   body:not(.view-home) .topbar .search.top{display:none}

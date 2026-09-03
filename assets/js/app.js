@@ -945,6 +945,99 @@
     fr.readAsText(file, 'utf-8');
   }
 
+  /* ---------------- 同期の表示と操作 ---------------- */
+
+  var lastSavedAt = '';
+
+  function syncChip() {
+    var el = $('#savedAt');
+    if (!el) return;
+    var S = global.Sync;
+    var kind = 'local', text = 'この端末に保存' + (lastSavedAt ? ' ' + lastSavedAt : '');
+    if (S && S.enabled) {
+      if (S.status === 'saving') { kind = 'busy'; text = '同期中…'; }
+      else if (S.status === 'offline') { kind = 'warn'; text = 'サーバーに繋がりません'; }
+      else if (S.status === 'conflict') { kind = 'warn'; text = '要確認'; }
+      else if (S.status === 'token') { kind = 'warn'; text = '合言葉が必要'; }
+      else { kind = 'ok'; text = '共有中' + (lastSavedAt ? ' ' + lastSavedAt : ''); }
+    } else if (S && S.status === 'token') {
+      kind = 'warn'; text = '合言葉が必要';
+    }
+    el.className = 'saved ' + kind;
+    el.innerHTML = '<i class="dot"></i><span class="t">' + F.esc(text) + '</span>';
+    el.title = kind === 'local'
+      ? 'この端末のブラウザだけに保存しています'
+      : 'クリックすると同期の状態を確認できます';
+  }
+
+  function openSync() {
+    var S = global.Sync;
+    var rows;
+    if (!S || !S.enabled) {
+      rows = '<p class="note">いまは <b>この端末だけ</b> にデータを保存しています。' +
+        '他の端末とは共有されません。<br><br>' +
+        'PCと携帯で同じ内容を見たい場合は、PCで共有サーバーを立ち上げて、' +
+        'そのURLを携帯から開いてください。手順は同梱の README に書いてあります。</p>' +
+        (S && S.status === 'token'
+          ? '<div style="margin-top:12px"><button class="btn" id="syncToken">合言葉を入れ直す</button></div>'
+          : '');
+    } else {
+      var st = { synced: '共有中', saving: '同期中', offline: 'サーバーに繋がりません',
+                 conflict: '他の端末と食い違っています', token: '合言葉が必要' }[S.status] || S.status;
+      rows = '<dl class="kv">' +
+        '<div><dt>状態</dt><dd>' + F.esc(st) + '</dd></div>' +
+        '<div><dt>版</dt><dd class="n">rev. ' + S.metaRev() + '</dd></div>' +
+        '<div><dt>未送信の変更</dt><dd>' + (S.dirty ? 'あり' : 'なし') + '</dd></div>' +
+        '</dl>' +
+        '<p class="note" style="margin-top:12px">同じサーバーを開いている端末は、すべて同じ内容になります。' +
+        '画面を切り替えたときや20秒ごとに自動で確認します。</p>' +
+        '<div class="menu-list" style="margin-top:14px">' +
+          '<button class="btn" id="syncPull">サーバーの内容を読み込む</button>' +
+          '<button class="btn" id="syncPush">この端末の内容で上書きする</button>' +
+        '</div>';
+    }
+    var ov = modal('データの保存先', rows, '<button class="btn" data-close>閉じる</button>');
+    var b;
+    if ((b = $('#syncPull', ov))) b.addEventListener('click', function () {
+      ov.remove(); global.Sync.pull(Store); toast('サーバーを確認しました');
+    });
+    if ((b = $('#syncPush', ov))) b.addEventListener('click', function () {
+      if (!confirm('サーバーの内容を、この端末の内容で置き換えます。\n他の端末で入れた変更は消えます。よろしいですか？')) return;
+      ov.remove();
+      global.Sync.forceOverwrite(Store).then(function () { toast('サーバーへ送りました'); });
+    });
+    if ((b = $('#syncToken', ov))) b.addEventListener('click', function () { ov.remove(); askToken(); });
+  }
+
+  function askToken() {
+    var t = prompt('サーバーの合言葉を入力してください');
+    if (t === null) return;
+    global.Sync.setToken(t.trim());
+    location.reload();
+  }
+
+  function showConflict(srv) {
+    var when = srv && srv.updatedAt ? new Date(srv.updatedAt).toLocaleString('ja-JP') : '不明';
+    var body = '<p class="note">サーバー側が <b>' + F.esc(when) + '</b>' +
+      (srv && srv.by ? '（' + F.esc(srv.by) + '）' : '') + ' に更新されています。<br>' +
+      'この端末にも、まだ送っていない変更があります。どちらを残すか選んでください。</p>' +
+      '<div class="menu-list" style="margin-top:14px">' +
+        '<button class="btn primary" id="cfSrv">サーバーの内容を使う<br>' +
+          '<small style="font-weight:400;opacity:.75">この端末の未送信の変更は消えます</small></button>' +
+        '<button class="btn" id="cfMine">この端末の内容を使う<br>' +
+          '<small style="font-weight:400;opacity:.75">サーバー側の変更は消えます</small></button>' +
+      '</div>' +
+      '<p class="note" style="margin-top:12px">迷う場合は先に「バックアップ」で両方を控えておくと安全です。</p>';
+    var ov = modal('内容が食い違っています', body, '<button class="btn" data-close>あとで決める</button>');
+    $('#cfSrv', ov).addEventListener('click', function () {
+      ov.remove(); global.Sync.apply(Store, srv); renderAll(); toast('サーバーの内容にそろえました');
+    });
+    $('#cfMine', ov).addEventListener('click', function () {
+      ov.remove();
+      global.Sync.forceOverwrite(Store).then(function () { toast('この端末の内容で上書きしました'); });
+    });
+  }
+
   /* ---------------- 起動 ---------------- */
 
   function seedSample() {
@@ -964,7 +1057,8 @@
 
     var warned = false;
     Store.onSaved = function (ok) {
-      $('#savedAt').textContent = ok ? '保存済 ' + F.clock() : '⚠ 保存できません';
+      if (ok) { lastSavedAt = F.clock().slice(0, 5); syncChip(); }
+      else { $('#savedAt').className = 'saved warn'; $('#savedAt').innerHTML = '<i class="dot"></i><span class="t">保存できません</span>'; }
       if (!ok && !warned) {
         warned = true;
         alert('データを保存できませんでした。ブラウザの保存容量がいっぱいのようです。\n\n' +
@@ -1046,8 +1140,24 @@
     });
 
     window.addEventListener('beforeunload', function () { Store.saveNow(); });
+    $('#savedAt').addEventListener('click', openSync);
 
     renderAll();
+    syncChip();
+
+    if (global.Sync) {
+      global.Sync.onStatus = syncChip;
+      global.Sync.onApplied = function () {
+        renderAll();
+        toast('他の端末の変更を取り込みました');
+      };
+      global.Sync.onConflict = showConflict;
+      global.Sync.init(Store, function (ok) {
+        syncChip();
+        if (ok) renderAll();
+        else if (global.Sync.status === 'token') askToken();
+      });
+    }
   }
 
   if (document.readyState === 'loading') {

@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#11141a">
+<meta name="theme-color" content="#0a0b0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="原価管理">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
 <title>レストア原価管理</title>
 <link rel="stylesheet" href="assets/app.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
@@ -33,7 +38,7 @@
     <button class="btn dark hide-mobile" id="btnRestore">復元</button>
     <button class="btn dark hide-mobile" id="btnPrint">印刷 / PDF</button>
     <button class="btn dark only-mobile" id="btnMenu" title="メニュー">⋯</button>
-    <span class="saved" id="savedAt"></span>
+    <span class="saved" id="savedAt" title="保存の状態"></span>
   </header>
 
   <div class="main">
@@ -58,6 +63,7 @@
 <script src="assets/js/format.js"></script>
 <script src="assets/js/calc.js"></script>
 <script src="assets/js/store.js"></script>
+<script src="assets/js/sync.js"></script>
 <script src="assets/js/sample.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
