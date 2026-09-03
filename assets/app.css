@@ -462,7 +462,10 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
 
   /* 明細：1行 = 縦積みのカード。横スクロールはしない */
   .tbl-wrap{overflow:visible}
-  table.cost,table.cost tbody,table.cost tfoot{display:block}
+  /* 合計を明細より前に出す */
+  table.cost{display:flex;flex-direction:column}
+  table.cost tbody,table.cost tfoot{display:block}
+  table.cost tfoot{order:-1;margin-bottom:10px}
   table.cost colgroup,table.cost thead{display:none}
   table.cost tbody tr{
     display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:1px;
