@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#11141a">
 <title>レストア原価管理</title>
 <link rel="stylesheet" href="assets/app.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
@@ -12,17 +13,18 @@
 
   <header class="topbar">
     <div class="brand"><b>レストア原価管理</b><span>車両別 原価表</span></div>
-    <button class="btn dark" id="btnHome" hidden>← 車両一覧</button>
-    <button class="btn dark" id="btnNew">＋ 車両を追加</button>
+    <button class="btn dark" id="btnHome" hidden>←<span class="lbl"> 車両一覧</span></button>
+    <button class="btn dark" id="btnNew">＋<span class="lbl"> 車両を追加</span></button>
     <input class="search top" id="vehSearch" type="search" placeholder="車名・管理番号で検索">
     <span class="spacer"></span>
-    <button class="btn dark" id="btnUndo" title="元に戻す (Ctrl+Z)">↶ 元に戻す</button>
-    <button class="btn dark" id="btnRedo" title="やり直す (Ctrl+Shift+Z)">↷ やり直す</button>
-    <button class="btn dark" id="btnWorkers">職人・単価</button>
-    <button class="btn dark" id="btnCsv">CSV書出</button>
-    <button class="btn dark" id="btnBackup">バックアップ</button>
-    <button class="btn dark" id="btnRestore">復元</button>
-    <button class="btn dark" id="btnPrint">印刷 / PDF</button>
+    <button class="btn dark hide-mobile" id="btnUndo" title="元に戻す (Ctrl+Z)">↶ 元に戻す</button>
+    <button class="btn dark hide-mobile" id="btnRedo" title="やり直す (Ctrl+Shift+Z)">↷ やり直す</button>
+    <button class="btn dark hide-mobile" id="btnWorkers">職人・単価</button>
+    <button class="btn dark hide-mobile" id="btnCsv">CSV書出</button>
+    <button class="btn dark hide-mobile" id="btnBackup">バックアップ</button>
+    <button class="btn dark hide-mobile" id="btnRestore">復元</button>
+    <button class="btn dark hide-mobile" id="btnPrint">印刷 / PDF</button>
+    <button class="btn dark only-mobile" id="btnMenu" title="メニュー">⋯</button>
     <span class="saved" id="savedAt"></span>
   </header>
 

@@ -130,27 +130,35 @@
         '<td class="act">' + actBtns() + '</td></tr>';
     }
     var cells = ws.map(function (w) {
-      return '<td class="num"><input data-f="h:' + w.id + '" data-kind="hours" value="' +
-        F.esc(hourCell(r.hours && r.hours[w.id])) + '"></td>';
+      var h = hourCell(r.hours && r.hours[w.id]);
+      return '<td class="num hr' + (h ? '' : ' zero') + '" data-label="' + F.esc(w.name) + '">' +
+        '<input data-f="h:' + w.id + '" data-kind="hours" value="' + F.esc(h) + '"></td>';
     }).join('');
     return '<tr data-row="' + r.id + '">' +
       '<td class="no">' + idx + '</td>' +
-      '<td class="dt"><input data-f="date" data-kind="date" title="' + F.esc(F.fullDate(r.date)) +
+      '<td class="dt" data-label="作業日"><input data-f="date" data-kind="date" title="' + F.esc(F.fullDate(r.date)) +
         '" value="' + F.esc(F.shortDate(r.date)) + '"></td>' +
-      '<td><input data-f="work" title="' + F.esc(r.work) + '" value="' + F.esc(r.work) + '"></td>' +
-      '<td><input data-f="part" title="' + F.esc(r.part) + '" value="' + F.esc(r.part) + '"></td>' +
-      '<td class="num"><input data-f="partCost" data-kind="money" value="' + F.esc(moneyCell(r.partCost)) + '"></td>' +
-      '<td class="num"><input data-f="outCost" data-kind="money" value="' + F.esc(moneyCell(r.outCost)) + '"></td>' +
+      '<td class="c-work" data-label="作業"><input data-f="work" title="' + F.esc(r.work) + '" value="' + F.esc(r.work) + '"></td>' +
+      '<td class="c-part' + (r.part ? '' : ' zero') + '" data-label="部品"><input data-f="part" title="' +
+        F.esc(r.part) + '" value="' + F.esc(r.part) + '"></td>' +
+      '<td class="num c-money' + (F.toNum(r.partCost) ? '' : ' zero') + '" data-label="部品代">' +
+        '<input data-f="partCost" data-kind="money" value="' + F.esc(moneyCell(r.partCost)) + '"></td>' +
+      '<td class="num c-money' + (F.toNum(r.outCost) ? '' : ' zero') + '" data-label="外注費">' +
+        '<input data-f="outCost" data-kind="money" value="' + F.esc(moneyCell(r.outCost)) + '"></td>' +
       cells +
-      '<td class="num"><input data-f="outHours" data-kind="hours" value="' + F.esc(hourCell(r.outHours)) + '"></td>' +
+      '<td class="num hr' + (hourCell(r.outHours) ? '' : ' zero') + '" data-label="外注"><input data-f="outHours" data-kind="hours" value="' +
+        F.esc(hourCell(r.outHours)) + '"></td>' +
       '<td class="act">' + actBtns() + '</td></tr>';
   }
 
+  var ROW_ACTS = [['up', '↑ 上へ移動'], ['down', '↓ 下へ移動'], ['dup', '⧉ この行を複製'], ['del', '✕ この行を削除']];
+
   function actBtns() {
-    return '<button class="mini" data-act="up" title="上へ">↑</button>' +
-      '<button class="mini" data-act="down" title="下へ">↓</button>' +
-      '<button class="mini" data-act="dup" title="複製">⧉</button>' +
-      '<button class="mini del" data-act="del" title="削除">✕</button>';
+    return '<button class="mini hide-mobile" data-act="up" title="上へ">↑</button>' +
+      '<button class="mini hide-mobile" data-act="down" title="下へ">↓</button>' +
+      '<button class="mini hide-mobile" data-act="dup" title="複製">⧉</button>' +
+      '<button class="mini del hide-mobile" data-act="del" title="削除">✕</button>' +
+      '<button class="mini only-mobile" data-act="menu" title="この行の操作">⋮</button>';
   }
 
   function tableHtml(v) {
@@ -181,10 +189,12 @@
 
     var foot = '<tfoot><tr>' +
       '<td class="lbl" colspan="4">合計（税込）</td>' +
-      '<td id="tot-part"></td>' +
-      '<td id="tot-out"></td>' +
-      ws.map(function (w) { return '<td id="tot-w-' + w.id + '"></td>'; }).join('') +
-      '<td id="tot-outh"></td>' +
+      '<td id="tot-part" data-label="部品代"></td>' +
+      '<td id="tot-out" data-label="外注費"></td>' +
+      ws.map(function (w) {
+        return '<td id="tot-w-' + w.id + '" data-label="' + F.esc(w.name) + '"></td>';
+      }).join('') +
+      '<td id="tot-outh" data-label="外注"></td>' +
       '<td class="act"></td></tr></tfoot>';
 
     return '<table class="cost">' + cols + head + body + foot + '</table>';
@@ -264,10 +274,10 @@
       '<div class="print-head"><div class="t">' + F.esc(vehicleLabel(v)) + '</div>' +
         '<div class="p">仕入価格　' + F.yen(v.purchasePrice) + '</div></div>' +
 
-      '<section class="card no-print"><div class="card-head"><h3>車両情報</h3><span class="spacer"></span>' +
-        '<button class="btn sm" data-vact="dup">この車両を複製</button>' +
-        '<button class="btn sm danger" data-vact="del">車両を削除</button>' +
-      '</div><div class="card-body"><div class="veh-info">' +
+      '<details class="card no-print" id="vehCard"' + (window.innerWidth > 760 ? ' open' : '') + '>' +
+      '<summary class="card-head"><h3>車両情報</h3><span class="spacer"></span>' +
+        '<span class="hint">タップで開閉</span>' +
+      '</summary><div class="card-body"><div class="veh-info">' +
       '<div class="photo-box">' +
         '<div class="photo' + (v.photo ? '' : ' empty') + '" id="photoBox"' + photoStyle(v) + '>' +
           (v.photo ? '' : '<span>クリック／ドラッグで<br>写真を追加</span>') + '</div>' +
@@ -286,12 +296,16 @@
         field('仕入価格（税込）', 'purchasePrice', v.purchasePrice, { type: 'money', span: 2 }) +
         field('時間単価（円/h）', 'hourlyRate', v.hourlyRate, { type: 'money', span: 2 }) +
         field('メモ', 'memo', v.memo, { type: 'textarea', span: 6 }) +
-      '</div></div></div></section>' +
+      '</div></div>' +
+      '<div class="veh-acts">' +
+        '<button class="btn sm" data-vact="dup">この車両を複製</button>' +
+        '<button class="btn sm danger" data-vact="del">車両を削除</button>' +
+      '</div></div></details>' +
 
-      '<section class="card"><div class="card-head"><h3>原価サマリー</h3></div>' +
+      '<section class="card" id="sumCard"><div class="card-head"><h3>原価サマリー</h3></div>' +
       '<div class="card-body"><div class="sum-grid" id="sumGrid"></div></div></section>' +
 
-      '<section class="card"><div class="card-head"><h3>作業明細</h3><span class="spacer"></span>' +
+      '<section class="card" id="tblCard"><div class="card-head"><h3>作業明細</h3><span class="spacer"></span>' +
         '<span class="hint">Enterで下の行へ／最終行なら新しい行を追加</span>' +
       '</div><div class="tbl-wrap" id="tblWrap">' + tableHtml(v) + '</div>' +
       '<div id="printTbl"></div>' +
@@ -299,11 +313,13 @@
         '<button class="btn primary" data-tact="add">＋ 行を追加</button>' +
         '<button class="btn" data-tact="add10">＋ 10行</button>' +
         '<button class="btn" data-tact="divider">＋ 区切り行</button>' +
+        '<button class="btn only-mobile" data-tact="empty" id="btnEmpty"></button>' +
         '<span class="spacer" style="flex:1"></span>' +
         '<span class="hint" id="rowInfo"></span>' +
       '</div></section>';
 
     updateTotals();
+    setShowEmpty(document.body.classList.contains('show-empty'));
   }
 
   /* 合計だけを差し替える（入力中もフォーカスを保つ） */
@@ -384,6 +400,7 @@
     Store.save();
     renderAll();
     $('#detail').scrollTop = 0;
+    window.scrollTo(0, 0);
   }
 
   function goHome() {
@@ -391,6 +408,7 @@
     Store.save();
     renderAll();
     $('#detail').scrollTop = 0;
+    window.scrollTo(0, 0);
   }
 
   function refreshUndoButtons() {
@@ -444,10 +462,17 @@
       } else if (f.indexOf('h:') === 0) {
         if (!r.hours) r.hours = {};
         r.hours[f.slice(2)] = F.toNum(el.value);
+      } else if (f === 'outHours') {
+        r.outHours = F.toNum(el.value);
       } else {
         r[f] = F.toNum(el.value);
       }
     });
+    if (f !== 'work' && f !== 'date') {
+      var td = el.closest('td');
+      var blank = f === 'part' ? !el.value : F.toNum(el.value) === 0;
+      if (td) td.classList.toggle('zero', blank);
+    }
     updateTotals();
     refreshUndoButtons();
   }
@@ -500,6 +525,13 @@
 
   /* ---------------- 行・車両の操作 ---------------- */
 
+  /* 携帯では空の欄を畳んで表示を短くする。入力したいときはこれで開く */
+  function setShowEmpty(on) {
+    document.body.classList.toggle('show-empty', !!on);
+    var b = $('#btnEmpty');
+    if (b) b.textContent = on ? '空欄を隠す' : '空欄も表示';
+  }
+
   function addRows(count, type) {
     var v = Store.selected();
     if (!v) return;
@@ -507,6 +539,9 @@
       for (var i = 0; i < count; i++) v.rows.push(Calc.emptyRow(type));
     });
     renderTableOnly();
+    setShowEmpty(true);   /* 足した行にすぐ書き込めるように */
+    var last = $('#tblWrap tbody').lastElementChild;
+    if (last) last.scrollIntoView({ block: 'center' });
   }
 
   function renderTableOnly() {
@@ -514,6 +549,7 @@
     if (!v) return;
     $('#tblWrap').innerHTML = tableHtml(v);
     updateTotals();
+    setShowEmpty(document.body.classList.contains('show-empty'));
     refreshUndoButtons();
   }
 
@@ -530,6 +566,9 @@
       if (btn.dataset.tact === 'add') addRows(1);
       else if (btn.dataset.tact === 'add10') addRows(10);
       else if (btn.dataset.tact === 'divider') addRows(1, 'divider');
+      else if (btn.dataset.tact === 'empty') {
+        setShowEmpty(!document.body.classList.contains('show-empty'));
+      }
       return;
     }
 
@@ -547,25 +586,48 @@
       var tr = btn.closest('tr[data-row]');
       var i = rowIndex(v, tr.dataset.row);
       if (i < 0) return;
-      var act = btn.dataset.act;
-      if (act === 'del') {
-        var r = v.rows[i];
-        var filled = r.work || r.part || F.toNum(r.partCost) || F.toNum(r.outCost);
-        if (filled && !confirm('この行を削除します。よろしいですか？\n\n' + (r.work || r.part))) return;
-        Store.mutate(null, function () { v.rows.splice(i, 1); });
-      } else if (act === 'dup') {
-        Store.mutate(null, function () {
-          var copy = JSON.parse(JSON.stringify(v.rows[i]));
-          copy.id = F.uid('r');
-          v.rows.splice(i + 1, 0, copy);
-        });
-      } else if (act === 'up' && i > 0) {
-        Store.mutate(null, function () { v.rows.splice(i - 1, 0, v.rows.splice(i, 1)[0]); });
-      } else if (act === 'down' && i < v.rows.length - 1) {
-        Store.mutate(null, function () { v.rows.splice(i + 1, 0, v.rows.splice(i, 1)[0]); });
-      } else { return; }
-      renderTableOnly();
+      if (btn.dataset.act === 'menu') openRowMenu(v, i);
+      else rowAction(v, i, btn.dataset.act);
     }
+  }
+
+  function rowAction(v, i, act) {
+    if (act === 'del') {
+      var r = v.rows[i];
+      var filled = r.work || r.part || F.toNum(r.partCost) || F.toNum(r.outCost);
+      if (filled && !confirm('この行を削除します。よろしいですか？\n\n' + (r.work || r.part))) return;
+      Store.mutate(null, function () { v.rows.splice(i, 1); });
+    } else if (act === 'dup') {
+      Store.mutate(null, function () {
+        var copy = JSON.parse(JSON.stringify(v.rows[i]));
+        copy.id = F.uid('r');
+        v.rows.splice(i + 1, 0, copy);
+      });
+    } else if (act === 'up' && i > 0) {
+      Store.mutate(null, function () { v.rows.splice(i - 1, 0, v.rows.splice(i, 1)[0]); });
+    } else if (act === 'down' && i < v.rows.length - 1) {
+      Store.mutate(null, function () { v.rows.splice(i + 1, 0, v.rows.splice(i, 1)[0]); });
+    } else { return; }
+    renderTableOnly();
+  }
+
+  /* 携帯は指で押せるように、行の操作をまとめて出す */
+  function openRowMenu(v, i) {
+    var r = v.rows[i];
+    var name = r.work || r.part || (r.type === 'divider' ? '区切り行' : '（空の行）');
+    var body = '<p class="note" style="margin:0 0 12px">' + F.esc(name) + '</p><div class="menu-list">' +
+      ROW_ACTS.map(function (a) {
+        var off = (a[0] === 'up' && i === 0) || (a[0] === 'down' && i === v.rows.length - 1);
+        return '<button class="btn' + (a[0] === 'del' ? ' danger' : '') + '" data-rowact="' + a[0] + '"' +
+          (off ? ' disabled' : '') + '>' + F.esc(a[1]) + '</button>';
+      }).join('') + '</div>';
+    var ov = modal('行 ' + (i + 1) + ' の操作', body, '<button class="btn" data-close>閉じる</button>');
+    ov.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-rowact]');
+      if (!b) return;
+      ov.remove();
+      rowAction(v, i, b.dataset.rowact);
+    });
   }
 
   function newVehicle() {
@@ -733,6 +795,34 @@
       ov.remove();
       renderAll();
       toast('設定を保存しました');
+    });
+  }
+
+  /* 携帯ではツールバーを畳んでメニューにまとめる */
+  function openMenu() {
+    var items = [
+      ['btnUndo', '↶ 元に戻す'],
+      ['btnRedo', '↷ やり直す'],
+      ['btnPrint', '印刷 / PDF'],
+      ['btnWorkers', '職人・単価の設定'],
+      ['btnCsv', 'CSV書き出し'],
+      ['btnBackup', 'バックアップを保存'],
+      ['btnRestore', 'バックアップから復元']
+    ].filter(function (it) {
+      var el = document.getElementById(it[0]);
+      return el && !el.hidden;
+    });
+    var body = '<div class="menu-list">' + items.map(function (it) {
+      var el = document.getElementById(it[0]);
+      return '<button class="btn" data-run="' + it[0] + '"' + (el.disabled ? ' disabled' : '') + '>' +
+        F.esc(it[1]) + '</button>';
+    }).join('') + '</div>';
+    var ov = modal('メニュー', body, '<button class="btn" data-close>閉じる</button>');
+    ov.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-run]');
+      if (!b) return;
+      ov.remove();
+      document.getElementById(b.dataset.run).click();
     });
   }
 
@@ -910,6 +1000,7 @@
       if (e.target.files && e.target.files[0]) restore(e.target.files[0]);
       e.target.value = '';
     });
+    $('#btnMenu').addEventListener('click', openMenu);
     $('#btnPrint').addEventListener('click', function () { preparePrint(); window.print(); });
     window.addEventListener('beforeprint', preparePrint);
     global.__preparePrint = preparePrint;
