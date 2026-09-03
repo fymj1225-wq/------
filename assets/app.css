@@ -417,11 +417,12 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
   .sidebar{display:none !important}
   .detail{
     display:flex;flex-direction:column;overflow:visible;gap:12px;
-    padding:11px calc(11px + var(--sar)) calc(68px + var(--sab)) calc(11px + var(--sal));
+    padding:11px calc(11px + var(--sar)) calc(96px + var(--sab)) calc(11px + var(--sal));
   }
   #sumCard{order:1}
   #tblCard{order:2}
   #vehCard{order:3}
+  body.info-first #vehCard{order:0}   /* 作ったばかりの車両は先頭 */
   .photo-box{max-width:210px}
   .only-mobile{display:inline-flex !important}
   .hide-mobile{display:none !important}

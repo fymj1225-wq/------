@@ -285,10 +285,12 @@
     return '<div class="' + cls + '"><label>' + F.esc(label) + '</label>' + input + '</div>';
   }
 
-  var expandInfoOnce = false;
+  var setupFor = null;      /* いま作ったばかりの車両（車両情報を先頭に出す） */
 
   function renderDetail() {
     var v = Store.selected();
+    var infoFirst = !!v && v.id === setupFor;
+    document.body.classList.toggle('info-first', infoFirst);
     var el = $('#detail');
     if (!v) {
       el.innerHTML = '<div class="emptystate"><h2>車両が選ばれていません</h2>' +
@@ -301,7 +303,7 @@
         '<div class="p">仕入価格　' + F.yen(v.purchasePrice) + '</div></div>' +
 
       '<details class="card no-print" id="vehCard"' +
-        ((window.innerWidth > 760 || expandInfoOnce) ? ' open' : '') + '>' +
+        ((window.innerWidth > 760 || infoFirst) ? ' open' : '') + '>' +
       '<summary class="card-head"><h3>車両情報</h3><span class="spacer"></span>' +
         '<span class="hint">タップで開閉</span>' +
       '</summary><div class="card-body"><div class="veh-info">' +
@@ -426,6 +428,7 @@
   }
 
   function openVehicle(id) {
+    if (id !== setupFor) setupFor = null;
     Store.state.selectedId = id;
     Store.state.view = 'vehicle';
     Store.save();
@@ -435,6 +438,7 @@
   }
 
   function goHome() {
+    setupFor = null;
     Store.state.view = 'home';
     Store.save();
     renderAll();
@@ -664,9 +668,8 @@
   function newVehicle() {
     var v = Calc.emptyVehicle(Store.state.settings);
     Store.mutate(null, function (s) { s.vehicles.push(v); s.selectedId = v.id; s.view = 'vehicle'; });
-    expandInfoOnce = true;          /* 車名をすぐ打てるように開いておく */
+    setupFor = v.id;                /* 車名をすぐ打てるよう、先頭に開いて出す */
     renderAll();
-    expandInfoOnce = false;
     var f = $('#detail [data-v="name"]');
     if (f) { f.focus(); f.select(); }
   }
@@ -687,6 +690,7 @@
 
   function deleteVehicle(v) {
     if (!confirm('「' + (v.name || '無名') + '」を削除します。\n明細もすべて消えます。よろしいですか？')) return;
+    if (v.id === setupFor) setupFor = null;
     Store.mutate(null, function (s) {
       var i = s.vehicles.indexOf(v);
       s.vehicles.splice(i, 1);
