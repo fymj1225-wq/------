@@ -88,6 +88,13 @@
     return String(v).replace(/-/g, '/');
   }
 
+  /* 車台番号の下4桁。記号や空白は無視して末尾4文字を取る */
+  function last4(v) {
+    var s = String(v == null ? '' : v).replace(/[^0-9A-Za-z]/g, '');
+    if (!s) return '';
+    return s.length <= 4 ? s : s.slice(-4);
+  }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -99,5 +106,5 @@
   }
 
   global.F = { toNum: toNum, money: money, yen: yen, hours: hours, blankZero: blankZero, stamp: stamp, clock: clock, esc: esc, uid: uid,
-    parseDate: parseDate, isISO: isISO, shortDate: shortDate, fullDate: fullDate };
+    parseDate: parseDate, isISO: isISO, shortDate: shortDate, fullDate: fullDate, last4: last4 };
 })(window);

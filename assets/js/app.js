@@ -35,6 +35,20 @@
       .filter(function (s) { return s && String(s).trim(); }).join('　');
   }
 
+  /* 車両名は「車名＋車台番号の下4桁」をひと組で扱う */
+  function vehicleTitle(v) {
+    var name = (v.name || '').trim() || '（無名）';
+    var t = F.last4(v.no);
+    return t ? name + ' ' + t : name;
+  }
+
+  /* 画面に出すとき、下4桁は等幅で少し落として車名と区別する */
+  function vehicleTitleHtml(v) {
+    var name = (v.name || '').trim() || '（無名）';
+    var t = F.last4(v.no);
+    return F.esc(name) + (t ? ' <span class="vin">' + F.esc(t) + '</span>' : '');
+  }
+
   /* ---------------- トップ（車両アカウント一覧） ---------------- */
 
   function photoStyle(v) {
@@ -51,7 +65,7 @@
         '<span class="status s-' + F.esc(st) + '"><i></i>' + F.esc(st) + '</span>' +
         (v.no ? '<span class="tag">#' + F.esc(v.no) + '</span>' : '') +
         '<div class="acct-title">' +
-          '<div class="acct-name">' + F.esc(v.name || '（無名）') + '</div>' +
+          '<div class="acct-name">' + vehicleTitleHtml(v) + '</div>' +
           '<div class="acct-sub">' + F.esc(sub || '—') + '</div>' +
         '</div>' +
       '</div>' +
@@ -122,7 +136,7 @@
       var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join(' / ') || '—';
       var st = v.status || '作業中';
       return '<div class="veh-card' + (v.id === Store.state.selectedId ? ' active' : '') + '" data-veh="' + v.id + '">' +
-        '<div class="nm">' + F.esc(v.name || '（無名）') +
+        '<div class="nm">' + vehicleTitleHtml(v) +
         '<span class="status s-' + F.esc(st) + '"><i></i>' + F.esc(st) + '</span></div>' +
         '<div class="sub">' + F.esc(sub) + (v.no ? '　#' + F.esc(v.no) : '') + '</div>' +
         '<div class="tot"><small>総計</small><b class="n">' + F.yen(t.grandTotal) + '</b></div>' +
@@ -299,7 +313,9 @@
     }
 
     el.innerHTML =
-      '<div class="print-head"><div class="t">' + F.esc(vehicleLabel(v)) + '</div>' +
+      '<div class="print-head"><div class="t">' + F.esc(vehicleTitle(v)) +
+        '<span class="spec">' + F.esc([v.grade, v.color, v.year, v.engine, v.no]
+          .filter(function (x) { return x && String(x).trim(); }).join('　')) + '</span></div>' +
         '<div class="p">仕入価格　' + F.yen(v.purchasePrice) + '</div></div>' +
 
       '<details class="card no-print" id="vehCard"' +
@@ -318,7 +334,7 @@
         field('車名', 'name', v.name, { span: 2, ph: '例）ユーノス' }) +
         field('グレード', 'grade', v.grade, { ph: '例）Sパッケージ' }) +
         field('色', 'color', v.color, { ph: '例）シルバー' }) +
-        field('管理番号', 'no', v.no, { ph: '例）218287' }) +
+        field('車台番号', 'no', v.no, { ph: '例）NA6CE-218287' }) +
         field('状態', 'status', v.status, { type: 'select', options: STATUSES }) +
         field('年式', 'year', v.year, { ph: '例）H5年式' }) +
         field('排気量', 'engine', v.engine, { ph: '例）1600cc' }) +
@@ -677,7 +693,7 @@
   function duplicateVehicle(v) {
     var copy = JSON.parse(JSON.stringify(v));
     copy.id = F.uid('v');
-    copy.name = v.name + '（複製）';
+    copy.name = (v.name || '車両') + '（複製）';
     copy.createdAt = new Date().toISOString();
     copy.rows.forEach(function (r) { r.id = F.uid('r'); });
     Store.mutate(null, function (s) {
@@ -689,7 +705,7 @@
   }
 
   function deleteVehicle(v) {
-    if (!confirm('「' + (v.name || '無名') + '」を削除します。\n明細もすべて消えます。よろしいですか？')) return;
+    if (!confirm('「' + vehicleTitle(v) + '」を削除します。\n明細もすべて消えます。よろしいですか？')) return;
     if (v.id === setupFor) setupFor = null;
     Store.mutate(null, function (s) {
       var i = s.vehicles.indexOf(v);
@@ -874,7 +890,8 @@
     var ws = workers();
     var t = Calc.vehicleTotals(v, ws);
     var L = [];
-    L.push([vehicleLabel(v)].map(csvEscape).join(','));
+    L.push([vehicleTitle(v)].map(csvEscape).join(','));
+    L.push(['車台番号', v.no || ''].map(csvEscape).join(','));
     L.push(['仕入価格', t.purchasePrice].map(csvEscape).join(','));
     L.push(['時間単価', v.hourlyRate].map(csvEscape).join(','));
     L.push('');
@@ -913,7 +930,7 @@
       '<button class="btn primary" id="csvAll">全車両まとめて</button>');
 
     if (v) $('#csvOne', ov).addEventListener('click', function () {
-      download('原価表_' + (v.name || '車両') + (v.no ? '_' + v.no : '') + '_' + F.stamp() + '.csv',
+      download('原価表_' + vehicleTitle(v).replace(/\s+/g, '_') + '_' + F.stamp() + '.csv',
         '﻿' + vehicleCsv(v), 'text/csv');
       ov.remove(); toast('CSVを書き出しました');
     });
