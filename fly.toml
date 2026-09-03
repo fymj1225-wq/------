@@ -1,0 +1,28 @@
+# Fly.io に置くときの設定例
+# 使い方は README の「インターネットに置く」を見てください
+app = "restore-cost"          # 好きな名前に変える（世界で一意）
+primary_region = "nrt"        # 東京
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  DATA_DIR = "/data"
+  RESTORE_PUBLIC = "1"
+
+[http_service]
+  internal_port = 8080
+  force_https = true          # http で来ても https に飛ばす
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+# データを置く消えないディスク
+[[mounts]]
+  source = "restore_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

@@ -16,7 +16,7 @@
   var ROLE_KEY = 'restore-cost-app:role';
   var PAIRED_KEY = 'restore-cost-app:paired';
 
-  var PUSH_DELAY = 900;
+  var PUSH_DELAY = 1200;
   var TICK_MASTER = 30000;
   var TICK_VIEWER = 12000;
   var RETRY_MIN = 6000, RETRY_MAX = 60000;
@@ -223,6 +223,7 @@
       body: '{"baseRev":' + m.rev + ',"by":' + JSON.stringify(deviceName()) + ',"state":' + sending + '}'
     }).then(function (r) {
       if (r.status === 401) { setStatus('token'); return; }
+      if (r.status === 429) { setStatus('offline'); scheduleRetry(); return; }
       if (r.status === 409) {
         return r.json().then(function (srv) {
           remember(srv);

@@ -1072,11 +1072,27 @@
     if ((b = $('#syncToken', ov))) b.addEventListener('click', function () { ov.remove(); askToken(); });
   }
 
-  function askToken() {
-    var t = prompt('サーバーの合言葉を入力してください');
-    if (t === null) return;
-    global.Sync.setToken(t.trim());
-    location.reload();
+  function askToken(again) {
+    var body = '<p class="note" style="margin:0 0 12px">' +
+      (again ? '合言葉が違うようです。もう一度入れてください。'
+             : 'この置き場所は合言葉で守られています。管理している人から聞いた合言葉を入れてください。') +
+      '<br>一度入れれば、この端末では次から聞かれません。</p>' +
+      '<div class="f"><label>合言葉</label>' +
+      '<input type="password" id="tokenInput" autocomplete="current-password" ' +
+      'autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="合言葉"></div>';
+    var ov = modal('合言葉の入力', body,
+      '<button class="btn" data-close>あとで</button><button class="btn primary" id="tokenOk">入力する</button>');
+    var input = $('#tokenInput', ov);
+    setTimeout(function () { input.focus(); }, 60);
+    var go = function () {
+      var t = (input.value || '').trim();
+      if (!t) { input.focus(); return; }
+      global.Sync.setToken(t);
+      ov.remove();
+      location.reload();
+    };
+    $('#tokenOk', ov).addEventListener('click', go);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
   }
 
   /* オフラインでも開けるようにする（https か localhost のときだけ有効） */
