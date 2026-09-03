@@ -376,6 +376,11 @@ table.cost tfoot td.zero{color:#4d545e;font-weight:400}
 .note{font-size:11.5px;color:var(--ink-weak);line-height:1.7}
 .menu-list{display:flex;flex-direction:column;gap:7px}
 .menu-list .btn{width:100%;text-align:left;padding:12px 14px;font-size:14px}
+.rolebtn{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:14px 16px !important;white-space:normal}
+.rolebtn b{font-size:14px}
+.rolebtn span{font-size:11.5px;color:var(--ink-weak);font-weight:400;line-height:1.6}
+.rolebtn.on{border-color:var(--accent);background:#1d1710}
+.rolebtn.on b{color:var(--accent-2)}
 .toast{
   position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
   background:#20242a;border:1px solid var(--line);color:var(--ink);

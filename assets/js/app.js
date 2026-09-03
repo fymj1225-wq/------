@@ -949,62 +949,114 @@
 
   var lastSavedAt = '';
 
+  function roleLabel(r) { return r === 'master' ? '親機' : '子機'; }
+
   function syncChip() {
     var el = $('#savedAt');
     if (!el) return;
     var S = global.Sync;
     var kind = 'local', text = 'この端末に保存' + (lastSavedAt ? ' ' + lastSavedAt : '');
     if (S && S.enabled) {
-      if (S.status === 'saving') { kind = 'busy'; text = '同期中…'; }
-      else if (S.status === 'offline') { kind = 'warn'; text = 'サーバーに繋がりません'; }
-      else if (S.status === 'conflict') { kind = 'warn'; text = '要確認'; }
+      var head = roleLabel(S.role) + '・';
+      if (S.status === 'saving') { kind = 'busy'; text = head + '送信中…'; }
+      else if (S.status === 'offline') { kind = 'warn'; text = head + '未接続'; }
+      else if (S.status === 'waiting') { kind = 'busy'; text = '親機の入力待ち'; }
+      else if (S.status === 'pending') { kind = 'warn'; text = head + '未送信の変更'; }
       else if (S.status === 'token') { kind = 'warn'; text = '合言葉が必要'; }
-      else { kind = 'ok'; text = '共有中' + (lastSavedAt ? ' ' + lastSavedAt : ''); }
+      else { kind = 'ok'; text = head + (S.isMaster() ? '共有中' : '同期済') + (lastSavedAt ? ' ' + lastSavedAt : ''); }
     } else if (S && S.status === 'token') {
       kind = 'warn'; text = '合言葉が必要';
     }
     el.className = 'saved ' + kind;
     el.innerHTML = '<i class="dot"></i><span class="t">' + F.esc(text) + '</span>';
-    el.title = kind === 'local'
-      ? 'この端末のブラウザだけに保存しています'
-      : 'クリックすると同期の状態を確認できます';
+    el.title = kind === 'local' ? 'この端末のブラウザだけに保存しています' : 'クリックすると同期の状態を確認できます';
+  }
+
+  function roleCard(r, chosen) {
+    var t = r === 'master'
+      ? ['親機にする', 'いつも使う携帯はこちら。<br>この端末の内容が「正」になり、編集すると自動で共有されます。']
+      : ['子機にする', '見る・印刷するPCはこちら。<br>開くたびに親機の内容を取り込みます。'];
+    return '<button class="btn rolebtn' + (chosen === r ? ' on' : '') + '" data-role="' + r + '">' +
+      '<b>' + t[0] + '</b><span>' + t[1] + '</span></button>';
+  }
+
+  function askRole(suggest) {
+    var body = '<p class="note" style="margin:0 0 12px">' +
+      'この端末の役割を決めてください。あとから変更できます。<br>' +
+      '<b>親機は1台だけ</b>にしてください。</p>' +
+      '<div class="menu-list">' + roleCard('master', suggest) + roleCard('viewer', suggest) + '</div>';
+    var ov = modal('この端末の役割', body, '');
+    ov.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-role]');
+      if (!b) return;
+      ov.remove();
+      global.Sync.setRole(b.dataset.role, Store);
+      syncChip();
+      toast(roleLabel(b.dataset.role) + 'に設定しました');
+    });
   }
 
   function openSync() {
     var S = global.Sync;
-    var rows;
+    var body;
     if (!S || !S.enabled) {
-      rows = '<p class="note">いまは <b>この端末だけ</b> にデータを保存しています。' +
-        '他の端末とは共有されません。<br><br>' +
-        'PCと携帯で同じ内容を見たい場合は、PCで共有サーバーを立ち上げて、' +
-        'そのURLを携帯から開いてください。手順は同梱の README に書いてあります。</p>' +
+      body = '<p class="note">いまは <b>この端末だけ</b> にデータを保存しています。<br><br>' +
+        'PCと携帯で同じ内容を見たい場合は、PCで共有サーバーを立ち上げて、そのURLを' +
+        '携帯からも開いてください。手順は同梱の README に書いてあります。</p>' +
         (S && S.status === 'token'
-          ? '<div style="margin-top:12px"><button class="btn" id="syncToken">合言葉を入れ直す</button></div>'
-          : '');
+          ? '<div class="menu-list" style="margin-top:14px"><button class="btn" id="syncToken">合言葉を入れ直す</button></div>' : '');
     } else {
-      var st = { synced: '共有中', saving: '同期中', offline: 'サーバーに繋がりません',
-                 conflict: '他の端末と食い違っています', token: '合言葉が必要' }[S.status] || S.status;
-      rows = '<dl class="kv">' +
+      var st = { synced: S.isMaster() ? '共有中' : '同期済', saving: '送信中',
+                 offline: 'サーバーに繋がっていません', waiting: '親機の入力待ち',
+                 pending: 'この端末の変更が未送信です', token: '合言葉が必要' }[S.status] || S.status;
+      var up = S.lastUpdate
+        ? new Date(S.lastUpdate.updatedAt).toLocaleString('ja-JP') + (S.lastUpdate.by ? '（' + F.esc(S.lastUpdate.by) + '）' : '')
+        : '—';
+      body = '<dl class="kv">' +
+        '<div><dt>この端末</dt><dd>' + roleLabel(S.role) + '</dd></div>' +
         '<div><dt>状態</dt><dd>' + F.esc(st) + '</dd></div>' +
+        '<div><dt>最終更新</dt><dd style="font-size:11.5px">' + up + '</dd></div>' +
         '<div><dt>版</dt><dd class="n">rev. ' + S.metaRev() + '</dd></div>' +
-        '<div><dt>未送信の変更</dt><dd>' + (S.dirty ? 'あり' : 'なし') + '</dd></div>' +
         '</dl>' +
-        '<p class="note" style="margin-top:12px">同じサーバーを開いている端末は、すべて同じ内容になります。' +
-        '画面を切り替えたときや20秒ごとに自動で確認します。</p>' +
-        '<div class="menu-list" style="margin-top:14px">' +
-          '<button class="btn" id="syncPull">サーバーの内容を読み込む</button>' +
-          '<button class="btn" id="syncPush">この端末の内容で上書きする</button>' +
+        '<p class="note" style="margin-top:12px">' +
+        (S.isMaster()
+          ? 'この端末の内容が「正」です。編集すると自動で送られ、子機はそれを受け取ります。' +
+            '電波が届かない間も普通に入力でき、つながった時点でまとめて送られます。'
+          : '開いたとき・画面に戻ったときに、親機の内容を取り込みます。' +
+            'この端末で編集した内容は、親機の内容が来たときに置き換わります。') +
+        '</p>' +
+        (S.status === 'pending'
+          ? '<div class="menu-list" style="margin-top:14px">' +
+              '<button class="btn primary" id="syncSend">この端末の変更を親機側へ送る</button>' +
+              '<button class="btn" id="syncDrop">変更を捨てて親機に合わせる</button>' +
+            '</div>'
+          : '<div class="menu-list" style="margin-top:14px">' +
+              '<button class="btn" id="syncPull">いますぐ同期する</button>' +
+            '</div>') +
+        '<div class="menu-list" style="margin-top:8px">' +
+          '<button class="btn" id="syncRole">役割を変える（いまは' + roleLabel(S.role) + '）</button>' +
         '</div>';
     }
-    var ov = modal('データの保存先', rows, '<button class="btn" data-close>閉じる</button>');
+    var ov = modal('データの共有', body, '<button class="btn" data-close>閉じる</button>');
     var b;
     if ((b = $('#syncPull', ov))) b.addEventListener('click', function () {
-      ov.remove(); global.Sync.pull(Store); toast('サーバーを確認しました');
-    });
-    if ((b = $('#syncPush', ov))) b.addEventListener('click', function () {
-      if (!confirm('サーバーの内容を、この端末の内容で置き換えます。\n他の端末で入れた変更は消えます。よろしいですか？')) return;
       ov.remove();
-      global.Sync.forceOverwrite(Store).then(function () { toast('サーバーへ送りました'); });
+      if (global.Sync.isMaster() && global.Sync.dirty) global.Sync.push(Store);
+      else global.Sync.pull(Store);
+      toast('同期しました');
+    });
+    if ((b = $('#syncSend', ov))) b.addEventListener('click', function () {
+      if (!confirm('この端末の内容で、共有されている内容を置き換えます。\n親機で加えた変更が消える場合があります。よろしいですか？')) return;
+      ov.remove();
+      global.Sync.sendLocal(Store).then(function () { toast('送信しました'); });
+    });
+    if ((b = $('#syncDrop', ov))) b.addEventListener('click', function () {
+      if (!confirm('この端末で加えた変更を捨てて、親機の内容に合わせます。よろしいですか？')) return;
+      ov.remove();
+      global.Sync.adoptServer(Store).then(function () { renderAll(); toast('親機の内容に合わせました'); });
+    });
+    if ((b = $('#syncRole', ov))) b.addEventListener('click', function () {
+      ov.remove(); askRole(global.Sync.role);
     });
     if ((b = $('#syncToken', ov))) b.addEventListener('click', function () { ov.remove(); askToken(); });
   }
@@ -1014,28 +1066,6 @@
     if (t === null) return;
     global.Sync.setToken(t.trim());
     location.reload();
-  }
-
-  function showConflict(srv) {
-    var when = srv && srv.updatedAt ? new Date(srv.updatedAt).toLocaleString('ja-JP') : '不明';
-    var body = '<p class="note">サーバー側が <b>' + F.esc(when) + '</b>' +
-      (srv && srv.by ? '（' + F.esc(srv.by) + '）' : '') + ' に更新されています。<br>' +
-      'この端末にも、まだ送っていない変更があります。どちらを残すか選んでください。</p>' +
-      '<div class="menu-list" style="margin-top:14px">' +
-        '<button class="btn primary" id="cfSrv">サーバーの内容を使う<br>' +
-          '<small style="font-weight:400;opacity:.75">この端末の未送信の変更は消えます</small></button>' +
-        '<button class="btn" id="cfMine">この端末の内容を使う<br>' +
-          '<small style="font-weight:400;opacity:.75">サーバー側の変更は消えます</small></button>' +
-      '</div>' +
-      '<p class="note" style="margin-top:12px">迷う場合は先に「バックアップ」で両方を控えておくと安全です。</p>';
-    var ov = modal('内容が食い違っています', body, '<button class="btn" data-close>あとで決める</button>');
-    $('#cfSrv', ov).addEventListener('click', function () {
-      ov.remove(); global.Sync.apply(Store, srv); renderAll(); toast('サーバーの内容にそろえました');
-    });
-    $('#cfMine', ov).addEventListener('click', function () {
-      ov.remove();
-      global.Sync.forceOverwrite(Store).then(function () { toast('この端末の内容で上書きしました'); });
-    });
   }
 
   /* ---------------- 起動 ---------------- */
@@ -1147,11 +1177,9 @@
 
     if (global.Sync) {
       global.Sync.onStatus = syncChip;
-      global.Sync.onApplied = function () {
-        renderAll();
-        toast('他の端末の変更を取り込みました');
-      };
-      global.Sync.onConflict = showConflict;
+      global.Sync.onApplied = function () { renderAll(); };
+      global.Sync.onNotice = toast;
+      global.Sync.onNeedRole = askRole;
       global.Sync.init(Store, function (ok) {
         syncChip();
         if (ok) renderAll();

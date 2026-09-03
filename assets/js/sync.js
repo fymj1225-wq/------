@@ -1,30 +1,98 @@
 /* ===================================================================
-   共有サーバーとの同期
-   サーバーが居れば全端末で同じデータを見る。居なければ何もしない
-   （この端末のブラウザ内だけで動く、従来どおりの動作）。
+   端末どうしの同期
+
+   ・親機（いつも使う携帯）… この端末の内容が「正」。編集すると自動で送る
+   ・子機（PCなど）        … 開くたびに親機の内容を取り込む。
+                              食い違ったときは必ず親機が優先される
+
+   サーバーが見つからないときは何もしない（従来どおり端末内だけで動く）。
    =================================================================== */
 (function (global) {
   'use strict';
 
   var META_KEY = 'restore-cost-app:sync';
   var TOKEN_KEY = 'restore-cost-app:token';
+  var ROLE_KEY = 'restore-cost-app:role';
+
   var PUSH_DELAY = 900;
-  var POLL_MS = 20000;
+  var POLL_MASTER = 30000;    /* 親機はあまり取りに行かなくてよい */
+  var POLL_VIEWER = 12000;    /* 子機はこまめに親機を見に行く */
+  var RETRY_MIN = 8000, RETRY_MAX = 60000;
 
   var Sync = {
-    enabled: false,       /* サーバーが見つかったか */
-    status: 'local',      /* local | synced | saving | offline | conflict */
+    enabled: false,
+    status: 'local',   /* local | synced | saving | offline | waiting | pending | token */
+    role: null,        /* 'master' | 'viewer' */
     rev: 0,
     dirty: false,
-    suppress: 0,          /* 内部書き込み中は「変更あり」にしない */
+    suppress: 0,
+    lastUpdate: null,  /* {updatedAt, by} */
     onStatus: null,
-    onApplied: null,      /* サーバーの内容を取り込んだ */
-    onConflict: null      /* 他端末と食い違った */
+    onApplied: null,
+    onNeedRole: null,
+    onNotice: null
   };
 
-  var pushTimer = null;
-  var busy = false;
-  var lastSent = null;      /* 直近にサーバーへ送った内容（無駄な送信を避ける） */
+  var pushTimer = null, retryTimer = null, retryWait = RETRY_MIN;
+  var busy = false, lastSent = null, autoResolved = false;
+
+  /* ---------------- 保存されている小さな設定 ---------------- */
+
+  function ls(k, v) {
+    try {
+      if (v === undefined) return global.localStorage.getItem(k);
+      global.localStorage.setItem(k, v);
+    } catch (e) {}
+    return null;
+  }
+  function meta() {
+    try {
+      var m = JSON.parse(ls(META_KEY) || '{}');
+      return { rev: m.rev || 0, dirty: !!m.dirty };
+    } catch (e) { return { rev: 0, dirty: false }; }
+  }
+  function setMeta(rev, dirty) {
+    Sync.rev = rev; Sync.dirty = dirty;
+    ls(META_KEY, JSON.stringify({ rev: rev, dirty: dirty }));
+  }
+
+  Sync.setToken = function (t) { ls(TOKEN_KEY, t || ''); };
+  Sync.getRole = function () { return ls(ROLE_KEY) || null; };
+  Sync.setRole = function (r, Store) {
+    ls(ROLE_KEY, r);
+    Sync.role = r;
+    if (Store && Sync.enabled) reconcile(Store).catch(function () {});
+  };
+  Sync.suggestedRole = function () {
+    var ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod|Android|Mobile/.test(ua) ? 'master' : 'viewer';
+  };
+  Sync.isMaster = function () { return Sync.role === 'master'; };
+
+  function deviceName() {
+    var ua = navigator.userAgent || '';
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua)) return 'iPad';
+    if (/Android/.test(ua)) return 'Android';
+    if (/Mac/.test(ua)) return 'Mac';
+    if (/Windows/.test(ua)) return 'Windows';
+    return 'ブラウザ';
+  }
+
+  function setStatus(s) {
+    if (Sync.status === s) return;
+    Sync.status = s;
+    if (Sync.onStatus) Sync.onStatus(s);
+  }
+  function notice(msg) { if (Sync.onNotice) Sync.onNotice(msg); }
+
+  function api(path, opts) {
+    opts = opts || {};
+    var h = { 'Content-Type': 'application/json' };
+    var t = ls(TOKEN_KEY);
+    if (t) h['X-Restore-Token'] = t;
+    return fetch(path, { method: opts.method || 'GET', headers: h, body: opts.body, cache: 'no-store' });
+  }
 
   /* 「どの車両を開いているか」は端末ごとの話なので共有しない */
   function shared(state) {
@@ -36,55 +104,13 @@
   }
   function sharedJson(state) { return JSON.stringify(shared(state)); }
 
-  function meta() {
-    try {
-      var m = JSON.parse(global.localStorage.getItem(META_KEY) || '{}');
-      return { rev: m.rev || 0, dirty: !!m.dirty };
-    } catch (e) { return { rev: 0, dirty: false }; }
-  }
-  function setMeta(rev, dirty) {
-    Sync.rev = rev; Sync.dirty = dirty;
-    try { global.localStorage.setItem(META_KEY, JSON.stringify({ rev: rev, dirty: dirty })); } catch (e) {}
-  }
-  function token() {
-    try { return global.localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
-  }
-  Sync.setToken = function (t) {
-    try { global.localStorage.setItem(TOKEN_KEY, t || ''); } catch (e) {}
-  };
-
-  function setStatus(s) {
-    if (Sync.status === s) return;
-    Sync.status = s;
-    if (Sync.onStatus) Sync.onStatus(s);
-  }
-
-  function api(path, opts) {
-    opts = opts || {};
-    var h = { 'Content-Type': 'application/json' };
-    if (token()) h['X-Restore-Token'] = token();
-    return fetch(path, {
-      method: opts.method || 'GET',
-      headers: h,
-      body: opts.body,
-      cache: 'no-store'
-    });
-  }
-
-  /* デバイス名（どの端末が最後に触ったか分かるように） */
-  function deviceName() {
-    var ua = navigator.userAgent || '';
-    if (/iPhone|iPad|iPod/.test(ua)) return 'iPhone/iPad';
-    if (/Android/.test(ua)) return 'Android';
-    if (/Mac/.test(ua)) return 'Mac';
-    if (/Windows/.test(ua)) return 'Windows';
-    return 'ブラウザ';
-  }
-
-  /* ---------------- 起動時のすり合わせ ---------------- */
+  /* ---------------- 起動 ---------------- */
 
   Sync.init = function (Store, done) {
     if (!global.fetch || global.location.protocol === 'file:') { done(false); return; }
+
+    var stored = Sync.getRole();
+    Sync.role = stored || Sync.suggestedRole();
 
     api('/api/ping').then(function (r) {
       if (!r.ok) throw new Error('ping');
@@ -96,10 +122,11 @@
       return reconcile(Store);
     }).then(function () {
       done(true);
-      startWatchers(Store);
+      watch(Store);
+      if (!stored && Sync.onNeedRole) Sync.onNeedRole(Sync.role);
     }).catch(function () {
       Sync.enabled = false;
-      setStatus('local');
+      setStatus(Sync.status === 'token' ? 'token' : 'local');
       done(false);
     });
   };
@@ -110,21 +137,37 @@
       if (r.status === 401) { setStatus('token'); throw new Error('token'); }
       return r.json();
     }).then(function (srv) {
-      if (!srv || srv.rev === 0) {
-        /* サーバーが空 → この端末の内容を初期値として送る */
-        return push(Store, true);
+      remember(srv);
+
+      if (!srv || !srv.rev) {
+        /* サーバーはまだ空 */
+        if (Sync.isMaster()) return push(Store);
+        setStatus('waiting');
+        return null;
       }
+
+      if (!Sync.isMaster()) {
+        /* 子機は親機の内容に合わせる。ただしこの端末に未送信の変更があれば、
+           勝手に消さずに本人へ判断してもらう */
+        if (m.dirty) { setStatus('pending'); return null; }
+        if (srv.rev !== m.rev) apply(Store, srv);
+        else setStatus('synced');
+        return null;
+      }
+
+      /* 親機 */
       if (!m.dirty) {
-        if (srv.rev !== m.rev) { apply(Store, srv); }
+        if (srv.rev !== m.rev) apply(Store, srv);
         else { setMeta(srv.rev, false); setStatus('synced'); }
         return null;
       }
-      /* この端末に未送信の変更がある */
-      if (srv.rev === m.rev) return push(Store, true);
-      setStatus('conflict');
-      if (Sync.onConflict) Sync.onConflict(srv);
-      return null;
+      if (srv.rev === m.rev) return push(Store);
+      return overwrite(Store);          /* 未送信の変更は親機が優先 */
     });
+  }
+
+  function remember(srv) {
+    if (srv && srv.updatedAt) Sync.lastUpdate = { updatedAt: srv.updatedAt, by: srv.by || null };
   }
 
   function apply(Store, srv) {
@@ -133,7 +176,6 @@
     Sync.suppress++;
     try {
       Store.replaceAll(srv.state);
-      /* 表示中の車両は端末ごとに保つ */
       Store.state.selectedId = Store.vehicle(keepSel) ? keepSel : null;
       Store.state.view = Store.state.selectedId ? (keepView || 'home') : 'home';
       lastSent = sharedJson(Store.state);
@@ -141,6 +183,7 @@
     } finally {
       Sync.suppress--;
     }
+    remember(srv);
     setStatus('synced');
     if (Sync.onApplied) Sync.onApplied(srv);
   }
@@ -148,9 +191,22 @@
 
   /* ---------------- 送信 ---------------- */
 
-  function push(Store, immediate) {
+  function clearRetry() {
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    retryWait = RETRY_MIN;
+  }
+  function scheduleRetry(Store) {
+    if (retryTimer) return;
+    retryTimer = setTimeout(function () {
+      retryTimer = null;
+      retryWait = Math.min(RETRY_MAX, retryWait * 2);
+      if (meta().dirty) push(Store);
+      else pull(Store);
+    }, retryWait);
+  }
+
+  function push(Store) {
     if (!Sync.enabled) return Promise.resolve();
-    if (busy && !immediate) return Promise.resolve();
     busy = true;
     setStatus('saving');
     var m = meta();
@@ -159,35 +215,55 @@
       method: 'PUT',
       body: '{"baseRev":' + m.rev + ',"by":' + JSON.stringify(deviceName()) + ',"state":' + sending + '}'
     }).then(function (r) {
+      if (r.status === 401) { setStatus('token'); return; }
       if (r.status === 409) {
         return r.json().then(function (srv) {
-          setStatus('conflict');
-          if (Sync.onConflict) Sync.onConflict(srv);
+          remember(srv);
+          if (Sync.isMaster()) {
+            if (autoResolved) { setStatus('offline'); return; }
+            autoResolved = true;
+            return overwrite(Store).then(function () { autoResolved = false; });
+          }
+          apply(Store, srv);
+          notice('親機の内容に更新しました（元に戻す で戻せます）');
         });
       }
-      if (r.status === 401) { setStatus('token'); return; }
       if (!r.ok) throw new Error('保存に失敗');
       return r.json().then(function (out) {
         lastSent = sending;
+        Sync.lastUpdate = { updatedAt: out.updatedAt, by: deviceName() };
         setMeta(out.rev, false);
+        clearRetry();
         setStatus('synced');
       });
     }).catch(function () {
       setStatus('offline');
-    }).then(function () {
-      busy = false;
-    });
+      scheduleRetry(Store);
+    }).then(function () { busy = false; });
   }
-  Sync.push = function (Store) { return push(Store, true); };
+  Sync.push = push;
 
-  /* Store から呼ばれる。ローカル保存のたびに送信を予約する */
+  /* サーバーの版に合わせてから、この端末の内容で上書きする */
+  function overwrite(Store) {
+    return api('/api/state').then(function (r) { return r.json(); }).then(function (srv) {
+      setMeta(srv.rev || 0, true);
+      return push(Store);
+    }).catch(function () { setStatus('offline'); });
+  }
+  Sync.forceOverwrite = overwrite;
+
   Sync.markDirty = function (Store) {
     if (!Sync.enabled || Sync.suppress > 0) return;
-    if (lastSent !== null && sharedJson(Store.state) === lastSent) return;  /* 中身は変わっていない */
+    if (lastSent !== null && sharedJson(Store.state) === lastSent) return;
     setMeta(meta().rev, true);
-    if (Sync.status !== 'conflict') setStatus('saving');
+    if (!Sync.isMaster()) {
+      /* 子機は自動では送らない。親機の内容を勝手に書き換えないため */
+      setStatus('pending');
+      return;
+    }
+    if (Sync.status !== 'offline') setStatus('saving');
     if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(function () { push(Store, true); }, PUSH_DELAY);
+    pushTimer = setTimeout(function () { push(Store); }, PUSH_DELAY);
   };
 
   /* ---------------- 受信 ---------------- */
@@ -195,36 +271,48 @@
   function pull(Store) {
     if (!Sync.enabled || busy) return;
     var m = meta();
-    if (m.dirty) return;                 /* 送るものがあるなら受け取らない */
+    if (Sync.isMaster() && m.dirty) { push(Store); return; }
+    if (!Sync.isMaster() && m.dirty) { setStatus('pending'); return; }   /* 判断待ち */
     api('/api/state').then(function (r) {
       if (!r.ok) throw new Error('pull');
       return r.json();
     }).then(function (srv) {
-      if (srv && srv.rev && srv.rev !== meta().rev && !meta().dirty) apply(Store, srv);
+      remember(srv);
+      if (!srv || !srv.rev) { setStatus(Sync.isMaster() ? 'synced' : 'waiting'); return; }
+      if (srv.rev !== meta().rev) apply(Store, srv);
       else setStatus('synced');
-    }).catch(function () { setStatus('offline'); });
+      clearRetry();
+    }).catch(function () {
+      setStatus('offline');
+      scheduleRetry(Store);
+    });
   }
   Sync.pull = pull;
 
-  function startWatchers(Store) {
+  function watch(Store) {
     setInterval(function () {
       if (document.visibilityState === 'visible') pull(Store);
-    }, POLL_MS);
+    }, Sync.isMaster() ? POLL_MASTER : POLL_VIEWER);
+
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') pull(Store);
+      if (document.visibilityState === 'visible') { clearRetry(); pull(Store); }
     });
-    global.addEventListener('focus', function () { pull(Store); });
-    global.addEventListener('online', function () { pull(Store); });
+    global.addEventListener('focus', function () { clearRetry(); pull(Store); });
+    global.addEventListener('online', function () { clearRetry(); pull(Store); });
   }
 
-  Sync.metaRev = function () { return meta().rev; };
-  Sync.forceOverwrite = function (Store) {
-    /* サーバーの版に合わせてから、この端末の内容で上書きする */
+  /* 子機で加えた変更を、本人の意思で親機側へ送る */
+  Sync.sendLocal = function (Store) { return overwrite(Store); };
+
+  /* 子機の変更を捨てて、親機の内容に合わせ直す */
+  Sync.adoptServer = function (Store) {
     return api('/api/state').then(function (r) { return r.json(); }).then(function (srv) {
-      setMeta(srv.rev || 0, true);
-      return push(Store, true);
-    });
+      if (srv && srv.rev) apply(Store, srv);
+      else { setMeta(0, false); setStatus('waiting'); }
+    }).catch(function () { setStatus('offline'); });
   };
+
+  Sync.metaRev = function () { return meta().rev; };
 
   global.Sync = Sync;
 })(window);
