@@ -15,6 +15,7 @@
   var TOKEN_KEY = 'restore-cost-app:token';
   var ROLE_KEY = 'restore-cost-app:role';
   var PAIRED_KEY = 'restore-cost-app:paired';
+  var NOSERVER_KEY = 'restore-cost-app:noserver';
 
   var PUSH_DELAY = 1200;
   var TICK_MASTER = 30000;
@@ -117,6 +118,13 @@
     store = Store;
     if (!global.fetch || global.location.protocol === 'file:') { done(false); return; }
 
+    /* この置き場所にはサーバーが無いと分かっている → 探しに行かない */
+    if (!paired() && ls(NOSERVER_KEY) === global.location.host) {
+      setStatus('local');
+      done(false);
+      return;
+    }
+
     Sync.role = Sync.getRole() || Sync.suggestedRole();
     connect().then(done);
     watch();
@@ -154,6 +162,7 @@
       });
     }).catch(function () {
       Sync.enabled = false;
+      if (!paired()) ls(NOSERVER_KEY, global.location.host);   /* 次からは探さない */
       setStatus(Sync.status === 'token' ? 'token' : (paired() ? 'offline' : 'local'));
       if (paired()) scheduleRetry();
       return false;
@@ -366,6 +375,12 @@
 
   /* 顔認証や合言葉で開いたあと、つなぎ直す */
   Sync.retryConnect = function () { return connect(); };
+
+  /* 置き場所を改めて探す（設定画面から） */
+  Sync.lookAgain = function () {
+    try { global.localStorage.removeItem(NOSERVER_KEY); } catch (e) {}
+    return connect();
+  };
 
   Sync.metaRev = function () { return meta().rev; };
 

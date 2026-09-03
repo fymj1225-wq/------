@@ -285,6 +285,8 @@
     return '<div class="' + cls + '"><label>' + F.esc(label) + '</label>' + input + '</div>';
   }
 
+  var expandInfoOnce = false;
+
   function renderDetail() {
     var v = Store.selected();
     var el = $('#detail');
@@ -298,7 +300,8 @@
       '<div class="print-head"><div class="t">' + F.esc(vehicleLabel(v)) + '</div>' +
         '<div class="p">仕入価格　' + F.yen(v.purchasePrice) + '</div></div>' +
 
-      '<details class="card no-print" id="vehCard"' + (window.innerWidth > 760 ? ' open' : '') + '>' +
+      '<details class="card no-print" id="vehCard"' +
+        ((window.innerWidth > 760 || expandInfoOnce) ? ' open' : '') + '>' +
       '<summary class="card-head"><h3>車両情報</h3><span class="spacer"></span>' +
         '<span class="hint">タップで開閉</span>' +
       '</summary><div class="card-body"><div class="veh-info">' +
@@ -661,7 +664,9 @@
   function newVehicle() {
     var v = Calc.emptyVehicle(Store.state.settings);
     Store.mutate(null, function (s) { s.vehicles.push(v); s.selectedId = v.id; s.view = 'vehicle'; });
+    expandInfoOnce = true;          /* 車名をすぐ打てるように開いておく */
     renderAll();
+    expandInfoOnce = false;
     var f = $('#detail [data-v="name"]');
     if (f) { f.focus(); f.select(); }
   }
@@ -915,10 +920,64 @@
     });
   }
 
+  var BK_AT = 'restore-cost-app:backupAt';
+  var BK_N = 'restore-cost-app:changes';
+
+  function noteChange() {
+    try {
+      var n = parseInt(localStorage.getItem(BK_N) || '0', 10) || 0;
+      localStorage.setItem(BK_N, String(n + 1));
+    } catch (e) {}
+  }
+  function markBackedUp() {
+    try {
+      localStorage.setItem(BK_AT, String(Date.now()));
+      localStorage.setItem(BK_N, '0');
+    } catch (e) {}
+  }
+  function backupInfo() {
+    var at = 0, n = 0;
+    try {
+      at = parseInt(localStorage.getItem(BK_AT) || '0', 10) || 0;
+      n = parseInt(localStorage.getItem(BK_N) || '0', 10) || 0;
+    } catch (e) {}
+    return { at: at, changes: n, days: at ? Math.floor((Date.now() - at) / 86400000) : null };
+  }
+
+  /* 携帯では「共有」から LINE・メール・ファイルへ直接渡せるようにする */
   function backup() {
-    download('レストア原価管理_バックアップ_' + F.stamp() + '.json',
-      JSON.stringify(Store.state, null, 2), 'application/json');
+    var name = 'レストア原価管理_' + F.stamp() + '.json';
+    var json = JSON.stringify(Store.state, null, 2);
+    var file = null;
+    try { file = new File([json], name, { type: 'application/json' }); } catch (e) {}
+
+    if (file && navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+      navigator.share({ files: [file], title: 'レストア原価管理のバックアップ' })
+        .then(function () { markBackedUp(); toast('バックアップを渡しました'); })
+        .catch(function () { /* 取り消しただけ */ });
+      return;
+    }
+    download(name, json, 'application/json');
+    markBackedUp();
     toast('バックアップを保存しました');
+  }
+
+  /* しばらく取っていなければ、そっと知らせる */
+  function backupReminder() {
+    var i = backupInfo();
+    if (!i.changes) return;
+    var stale = (i.at === 0 && i.changes >= 40) || (i.at > 0 && i.days >= 7);
+    if (!stale) return;
+    setTimeout(function () {
+      var el = document.createElement('div');
+      el.className = 'toast tap';
+      el.innerHTML = '<b>バックアップしませんか</b><span>' +
+        (i.at ? i.days + '日前から' : 'まだ一度も取っていません。') +
+        (i.at ? ' ' + i.changes + '件の変更' : '') + '　▶ タップ</span>';
+      el.addEventListener('click', function () { el.remove(); backup(); });
+      document.body.appendChild(el);
+      setTimeout(function () { el.remove(); }, 9000);
+    }, 1800);
   }
 
   function restore(file) {
@@ -936,6 +995,7 @@
       if (!confirm('いま入っているデータを、このファイルの内容で置き換えます。\n（元に戻す で戻せます）\n\n車両 ' +
         data.vehicles.length + ' 台を読み込みます。よろしいですか？')) return;
       Store.replaceAll(data);
+      markBackedUp();
       if (!Store.selected() && Store.state.vehicles.length) {
         Store.state.selectedId = Store.state.vehicles[0].id;
       }
@@ -1108,11 +1168,29 @@
           '<button class="btn" id="syncRole">役割を変える（いまは' + roleLabel(S.role) + '）</button>' +
         '</div>';
     } else if (!S || !S.enabled) {
-      body = '<p class="note">いまは <b>この端末だけ</b> にデータを保存しています。<br><br>' +
-        'PCと携帯で同じ内容を見たい場合は、PCで共有サーバーを立ち上げて、そのURLを' +
-        '携帯からも開いてください。手順は同梱の README に書いてあります。</p>' +
+      var i = backupInfo();
+      body = '<dl class="kv">' +
+        '<div><dt>保存先</dt><dd>この端末だけ</dd></div>' +
+        '<div><dt>最後のバックアップ</dt><dd style="font-size:11.5px">' +
+          (i.at ? new Date(i.at).toLocaleString('ja-JP') +
+                  (i.days ? '（' + i.days + '日前）' : '（今日）') : 'まだ取っていません') + '</dd></div>' +
+        '<div><dt>その後の変更</dt><dd class="n">' + i.changes + ' 件</dd></div>' +
+        '</dl>' +
+        '<p class="note" style="margin-top:12px">データはこの端末の中だけにあります。' +
+        'どこにも送られませんが、<b>端末を無くしたり、ブラウザのデータを消すと一緒に消えます。</b><br>' +
+        '節目ごとにバックアップを取って、LINEやメールで自分宛に送っておくのが確実です。</p>' +
+        '<div class="menu-list" style="margin-top:14px">' +
+          '<button class="btn primary" id="localBackup">バックアップを取る</button>' +
+          '<button class="btn" id="localRestore">バックアップから戻す</button>' +
+        '</div>' +
+        '<p class="note" style="margin-top:14px">' +
+        'PCや他の端末とも共有したくなったら、置き場所を用意して同じURLを開いてください。' +
+        '手順は同梱の DEPLOY.md にあります。</p>' +
+        '<div class="menu-list" style="margin-top:8px">' +
+          '<button class="btn" id="localLook">置き場所を探し直す</button>' +
+        '</div>' +
         (S && S.status === 'token'
-          ? '<div class="menu-list" style="margin-top:14px"><button class="btn" id="syncToken">合言葉を入れ直す</button></div>' : '');
+          ? '<div class="menu-list" style="margin-top:8px"><button class="btn" id="syncToken">合言葉を入れ直す</button></div>' : '');
     } else {
       var st = { synced: S.isMaster() ? '共有中' : '同期済', saving: '送信中',
                  offline: 'サーバーに繋がっていません', waiting: '親機の入力待ち',
@@ -1149,8 +1227,19 @@
               '</button>' : '') +
         '</div>';
     }
-    var ov = modal('データの共有', body, '<button class="btn" data-close>閉じる</button>');
+    var ov = modal((S && S.enabled) ? 'データの共有' : 'データの保存', body,
+      '<button class="btn" data-close>閉じる</button>');
     var b;
+    if ((b = $('#localBackup', ov))) b.addEventListener('click', function () { ov.remove(); backup(); });
+    if ((b = $('#localRestore', ov))) b.addEventListener('click', function () { ov.remove(); $('#fileInput').click(); });
+    if ((b = $('#localLook', ov))) b.addEventListener('click', function () {
+      ov.remove();
+      global.Sync.lookAgain().then(function (ok) {
+        syncChip();
+        toast(ok ? '置き場所が見つかりました' : '置き場所は見つかりませんでした');
+        if (ok) renderAll();
+      });
+    });
     if ((b = $('#syncPull', ov))) b.addEventListener('click', function () {
       ov.remove();
       if (global.Sync.isMaster() && global.Sync.dirty) global.Sync.push();
@@ -1260,10 +1349,17 @@
   /* ---------------- 起動 ---------------- */
 
   function seedSample() {
-    Store.state.settings.workers = JSON.parse(JSON.stringify(global.SAMPLE.workers));
-    Store.state.settings.hourlyRate = 5000;
-    Store.state.vehicles = [JSON.parse(JSON.stringify(global.SAMPLE.vehicle))];
-    Store.state.selectedId = Store.state.vehicles[0].id;
+    if (global.SAMPLE && global.SAMPLE.vehicle) {
+      Store.state.settings.workers = JSON.parse(JSON.stringify(global.SAMPLE.workers));
+      Store.state.settings.hourlyRate = 5000;
+      Store.state.vehicles = [JSON.parse(JSON.stringify(global.SAMPLE.vehicle))];
+      Store.state.selectedId = Store.state.vehicles[0].id;
+    } else {
+      /* 見本を外した場合は空で始める */
+      Store.state.vehicles = [];
+      Store.state.selectedId = null;
+      Store.state.view = 'home';
+    }
     Store.saveNow();
   }
 
@@ -1276,7 +1372,7 @@
 
     var warned = false;
     Store.onSaved = function (ok) {
-      if (ok) { lastSavedAt = F.clock().slice(0, 5); syncChip(); }
+      if (ok) { lastSavedAt = F.clock().slice(0, 5); noteChange(); syncChip(); }
       else { $('#savedAt').className = 'saved warn'; $('#savedAt').innerHTML = '<i class="dot"></i><span class="t">保存できません</span>'; }
       if (!ok && !warned) {
         warned = true;
@@ -1364,6 +1460,7 @@
 
     renderAll();
     syncChip();
+    backupReminder();
 
     if (global.Sync) {
       global.Sync.onStatus = syncChip;
