@@ -6,7 +6,7 @@
    =================================================================== */
 'use strict';
 
-var CACHE = 'restore-cost-v2';
+var CACHE = 'restore-cost-v3';
 var SHELL = [
   './',
   'index.html',
@@ -29,7 +29,7 @@ self.addEventListener('install', function (e) {
       return Promise.all(SHELL.map(function (u) {
         return c.add(new Request(u, { cache: 'reload' })).catch(function () { /* 無ければ飛ばす */ });
       }));
-    })
+    }).then(function () { return self.skipWaiting(); })   /* 新しい版をすぐ有効にする */
   );
 });
 

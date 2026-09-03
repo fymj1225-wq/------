@@ -22,6 +22,11 @@
   --danger:#ff6a5a;
 
   --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Roboto Mono",monospace;
+  /* 端末の物理的にふさがっている領域（ノッチ・ステータスバー・ホームバー） */
+  --sat:env(safe-area-inset-top,0px);
+  --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px);
+  --sar:env(safe-area-inset-right,0px);
   --r:14px;
   color-scheme:dark;
 }
@@ -410,7 +415,10 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
   .app{height:auto;overflow:visible;display:block}
   .main{display:block}
   .sidebar{display:none !important}
-  .detail{display:flex;flex-direction:column;overflow:visible;padding:11px 11px 68px;gap:12px}
+  .detail{
+    display:flex;flex-direction:column;overflow:visible;gap:12px;
+    padding:11px calc(11px + var(--sar)) calc(68px + var(--sab)) calc(11px + var(--sal));
+  }
   #sumCard{order:1}
   #tblCard{order:2}
   #vehCard{order:3}
@@ -418,8 +426,12 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
   .only-mobile{display:inline-flex !important}
   .hide-mobile{display:none !important}
 
-  .topbar{position:sticky;top:0;z-index:40;flex-wrap:wrap;padding:8px 11px;gap:7px;background:rgba(9,10,13,.95)}
-  .topbar .brand b{font-size:13.5px}
+  .topbar{
+    position:sticky;top:0;z-index:40;flex-wrap:wrap;gap:7px;background:rgba(9,10,13,.97);
+    padding:calc(8px + var(--sat)) calc(11px + var(--sar)) 8px calc(11px + var(--sal));
+  }
+  .topbar .brand{min-width:0}
+  .topbar .brand b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .topbar .brand span{display:none}
   .topbar .saved{padding:6px;gap:0;border-color:var(--line);background:#15181c}
   .topbar .saved .t{display:none}
@@ -502,9 +514,9 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
   .tbl-tools .btn{flex:1 1 auto;justify-content:center;text-align:center;padding:10px}
 
   .overlay{align-items:flex-end;padding:0}
-  .modal{max-width:none;border-radius:16px 16px 0 0;max-height:92vh}
+  .modal{max-width:none;border-radius:16px 16px 0 0;max-height:92vh;padding-bottom:var(--sab)}
   .modal-foot .btn{flex:1;text-align:center;padding:11px}
-  .toast{bottom:16px;width:calc(100% - 32px);text-align:center}
+  .toast{bottom:calc(16px + var(--sab));width:calc(100% - 32px);text-align:center}
 }
 
 /* ================= 印刷（紙は白） ================= */

@@ -1339,7 +1339,12 @@
         if (!w) return;
         w.addEventListener('statechange', function () {
           if (w.state === 'installed' && navigator.serviceWorker.controller) {
-            toast('新しい版があります。開き直すと切り替わります');
+            var el = document.createElement('div');
+            el.className = 'toast tap';
+            el.innerHTML = '<b>新しい版があります</b><span>タップで今すぐ切り替える</span>';
+            el.addEventListener('click', function () { location.reload(); });
+            document.body.appendChild(el);
+            setTimeout(function () { el.remove(); }, 12000);
           }
         });
       });
