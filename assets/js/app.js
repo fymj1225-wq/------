@@ -54,9 +54,9 @@
         '<div class="acct-sub">' + F.esc(sub || '—') + (v.no ? '　#' + F.esc(v.no) : '') + '</div>' +
         '<dl class="acct-figs">' +
           '<div><dt>仕入原価</dt><dd>' + F.yen(t.purchasePrice) + '</dd></div>' +
-          '<div><dt>かかった工数</dt><dd>' + (F.hours(t.totalHours) || '0') + '<span class="u"> h</span>' +
+          '<div><dt>工数</dt><dd>' + (F.hours(t.totalHours) || '0') + '<span class="u"> h</span>' +
             '<span class="brk">自社 ' + (F.hours(t.selfHours) || '0') + ' / 外注 ' + (F.hours(t.outsourceHours) || '0') + '</span></dd></div>' +
-          '<div><dt>かかった金額</dt><dd>' + F.yen(t.spentCost) +
+          '<div><dt>金額</dt><dd>' + F.yen(t.spentCost) +
             '<span class="brk">部品・外注 ' + F.money(t.materialCost) + ' / 人件費 ' + F.money(t.laborCost) + '</span></dd></div>' +
         '</dl>' +
         '<div class="acct-total"><span>総計</span><b>' + F.yen(t.grandTotal) + '</b></div>' +

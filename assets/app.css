@@ -294,7 +294,7 @@ table.cost tfoot td.zero{color:var(--ink-weak);font-weight:400}
 .acct-sub{font-size:11.5px;color:var(--ink-weak);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acct-figs{margin:10px 0 0;padding:9px 0 0;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:7px;flex:1}
 .acct-figs div{display:flex;align-items:baseline;gap:8px}
-.acct-figs dt{font-size:11.5px;color:var(--ink-sub);flex:0 0 84px}
+.acct-figs dt{font-size:11.5px;color:var(--ink-sub);flex:0 0 62px}
 .acct-figs dd{margin:0;flex:1;text-align:right;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
 .acct-figs dd .u{font-size:11px;font-weight:400;color:var(--ink-weak)}
 .acct-figs dd .brk{display:block;font-size:10.5px;font-weight:400;color:var(--ink-weak);letter-spacing:.01em}
