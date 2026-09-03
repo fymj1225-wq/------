@@ -15,6 +15,7 @@ var SHELL = [
   'assets/js/format.js',
   'assets/js/calc.js',
   'assets/js/store.js',
+  'assets/js/passkey.js',
   'assets/js/sync.js',
   'assets/js/sample.js',
   'assets/js/app.js',

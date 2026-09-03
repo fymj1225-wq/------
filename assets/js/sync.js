@@ -23,13 +23,16 @@
 
   var Sync = {
     enabled: false,
-    status: 'local',   /* local | synced | saving | offline | waiting | pending | token */
+    status: 'local',   /* local | synced | saving | offline | waiting | pending | locked | token */
     role: null,
     rev: 0,
     dirty: false,
     suppress: 0,
     lastUpdate: null,
+    serverInfo: null,
     onStatus: null,
+    onLocked: null,
+    onOfferPasskey: null,
     onApplied: null,
     onNeedRole: null,
     onNotice: null
@@ -37,7 +40,7 @@
 
   var store = null;
   var pushTimer = null, retryTimer = null, retryWait = RETRY_MIN, ticker = null;
-  var busy = false, lastSent = null, autoResolved = false, watching = false;
+  var busy = false, lastSent = null, autoResolved = false, watching = false, roleAsked = false;
 
   /* ---------------- 端末に残しておく小さな設定 ---------------- */
 
@@ -114,13 +117,8 @@
     store = Store;
     if (!global.fetch || global.location.protocol === 'file:') { done(false); return; }
 
-    var stored = Sync.getRole();
-    Sync.role = stored || Sync.suggestedRole();
-
-    connect().then(function (ok) {
-      done(ok);
-      if (ok && !stored && Sync.onNeedRole) Sync.onNeedRole(Sync.role);
-    });
+    Sync.role = Sync.getRole() || Sync.suggestedRole();
+    connect().then(done);
     watch();
   };
 
@@ -131,11 +129,29 @@
       return r.json();
     }).then(function (info) {
       if (!info || info.app !== 'restore-cost') throw new Error('別のサーバー');
-      Sync.enabled = true;
+      Sync.serverInfo = info;
       Sync.needToken = !!info.needToken;
+
+      /* 合言葉も顔認証も通っていない → 開くための画面を出してもらう */
+      if (info.needToken && !info.signedIn && !ls(TOKEN_KEY)) {
+        Sync.enabled = false;
+        setStatus('locked');
+        if (Sync.onLocked) Sync.onLocked(info);
+        return false;
+      }
+
+      Sync.enabled = true;
       ls(PAIRED_KEY, '1');
       restartTicker();
-      return reconcile().then(function () { return true; });
+      return reconcile().then(function () {
+        if (!Sync.getRole()) {
+          if (!roleAsked && Sync.onNeedRole) { roleAsked = true; Sync.onNeedRole(Sync.role); }
+        } else if (info.needToken && !info.passkeys && ls(TOKEN_KEY) && Sync.onOfferPasskey) {
+          /* 合言葉で入っている端末に、顔認証への切り替えをすすめる */
+          Sync.onOfferPasskey();
+        }
+        return true;
+      });
     }).catch(function () {
       Sync.enabled = false;
       setStatus(Sync.status === 'token' ? 'token' : (paired() ? 'offline' : 'local'));
@@ -326,6 +342,7 @@
   function restartTicker() {
     if (ticker) clearInterval(ticker);
     ticker = setInterval(function () {
+      if (Sync.status === 'locked') return;
       if (!Sync.enabled && !paired()) return;      /* 置き場所を使っていない端末では見に行かない */
       if (document.visibilityState === 'visible') poll();
     }, Sync.isMaster() ? TICK_MASTER : TICK_VIEWER);
@@ -337,6 +354,7 @@
     restartTicker();
     var wake = function () {
       if (document.visibilityState === 'hidden') return;
+      if (Sync.status === 'locked') return;
       if (!Sync.enabled && !paired()) return;
       clearRetry();
       if (Sync.enabled) poll(); else connect();
@@ -345,6 +363,9 @@
     global.addEventListener('focus', wake);
     global.addEventListener('online', wake);
   }
+
+  /* 顔認証や合言葉で開いたあと、つなぎ直す */
+  Sync.retryConnect = function () { return connect(); };
 
   Sync.metaRev = function () { return meta().rev; };
 

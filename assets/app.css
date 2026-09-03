@@ -357,6 +357,7 @@ table.cost tfoot td.zero{color:#4d545e;font-weight:400}
 }
 
 /* ---------- モーダル ---------- */
+body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:none}
 .overlay{
   position:fixed;inset:0;background:rgba(4,5,7,.72);backdrop-filter:blur(4px);
   display:flex;align-items:center;justify-content:center;z-index:50;padding:18px;

@@ -21,6 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const wa = require('./webauthn.js');
 
 const ROOT = __dirname;
 const PORT = parseInt(process.env.PORT, 10) || 8787;
@@ -33,6 +34,7 @@ const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const MAX_BODY = 48 * 1024 * 1024;      /* 写真込みでも足りるように */
 const BACKUP_EVERY_MS = 10 * 60 * 1000;
 const BACKUP_KEEP = 60;
+const ORIGIN_OVERRIDE = process.env.RESTORE_ORIGIN || '';
 const RATE_WINDOW = 60 * 1000;
 const RATE_MAX = 240;                   /* 1分あたりの上限（1IP） */
 const AUTH_FAIL_MAX = 20;               /* 合言葉の間違い上限（10分） */
@@ -60,6 +62,9 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.md': 'text/plain; charset=utf-8'
 };
+
+const store = wa.makeStore(DATA_DIR);
+const session = wa.makeSession(store);
 
 /* ---------------- データの読み書き ---------------- */
 
@@ -135,6 +140,170 @@ function tokenOk(req) {
   return crypto.timingSafeEqual(a, b);
 }
 
+function sessionOk(req) {
+  const raw = wa.readCookie(req, wa.COOKIE);
+  if (!raw) return null;
+  return session.verify(raw);
+}
+
+/* 合言葉が正しいか、顔認証で入った端末か */
+function authed(req) { return tokenOk(req) || !!sessionOk(req); }
+
+function isSecure(req) {
+  return PUBLIC_MODE || String(req.headers['x-forwarded-proto'] || '') === 'https';
+}
+
+function grantSession(req, res, cid) {
+  const value = session.sign({ exp: Date.now() + wa.SESSION_DAYS * 86400000, cid: cid });
+  const h = baseHeaders(req);
+  h['Content-Type'] = 'application/json; charset=utf-8';
+  h['Set-Cookie'] = wa.cookieHeader(wa.COOKIE, value, { secure: isSecure(req) });
+  return h;
+}
+
+/* ---------------- 顔認証（パスキー） ---------------- */
+
+function handlePasskey(req, res, pathname, ip) {
+  const rp = wa.rpInfo(req, ORIGIN_OVERRIDE);
+  const creds = store.readCreds();
+
+  if (pathname === '/api/webauthn/status' && req.method === 'GET') {
+    sendJson(req, res, 200, {
+      enabled: creds.length > 0,
+      signedIn: !!sessionOk(req),
+      needToken: !!TOKEN,
+      devices: creds.map(function (c) { return { label: c.label, createdAt: c.createdAt }; })
+    });
+    return true;
+  }
+
+  if (pathname === '/api/webauthn/register/start' && req.method === 'POST') {
+    if (!authed(req)) { authFail(req, res, ip); return true; }
+    sendJson(req, res, 200, {
+      challenge: wa.newChallenge('webauthn.create'),
+      rp: { id: rp.rpId, name: rp.name },
+      user: { id: wa.b64url(crypto.randomBytes(16)), name: 'restore', displayName: 'レストア原価管理' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      excludeCredentials: creds.map(function (c) { return { type: 'public-key', id: c.id }; }),
+      authenticatorSelection: {
+        authenticatorAttachment: 'platform',
+        userVerification: 'required',
+        residentKey: 'preferred'
+      },
+      timeout: 120000,
+      attestation: 'none'
+    });
+    return true;
+  }
+
+  if (pathname === '/api/webauthn/register/finish' && req.method === 'POST') {
+    if (!authed(req)) { authFail(req, res, ip); return true; }
+    readBody(req, function (err, raw) {
+      if (err) { sendJson(req, res, 413, { error: err.message }); return; }
+      let b;
+      try { b = JSON.parse(raw); } catch (e) { sendJson(req, res, 400, { error: 'JSONが不正です' }); return; }
+      if (!b || !b.id || !b.publicKey || !b.clientDataJSON) {
+        sendJson(req, res, 400, { error: '登録情報が足りません' }); return;
+      }
+      if (!wa.checkClientData(b.clientDataJSON, 'webauthn.create', rp.origin)) {
+        sendJson(req, res, 400, { error: '検証に失敗しました' }); return;
+      }
+      const alg = parseInt(b.alg, 10);
+      if (!wa.ALGS[String(alg)]) { sendJson(req, res, 400, { error: '対応していない方式です' }); return; }
+
+      const list = store.readCreds().filter(function (c) { return c.id !== b.id; });
+      list.push({
+        id: String(b.id),
+        pubkey: String(b.publicKey),
+        alg: alg,
+        label: String(b.label || '端末').slice(0, 30),
+        createdAt: new Date().toISOString(),
+        lastUsedAt: null,
+        counter: 0
+      });
+      store.writeCreds(list);
+
+      const h = grantSession(req, res, String(b.id));
+      res.writeHead(200, h);
+      res.end(JSON.stringify({ ok: true }));
+    });
+    return true;
+  }
+
+  if (pathname === '/api/webauthn/login/start' && req.method === 'POST') {
+    if (!creds.length) { sendJson(req, res, 404, { error: '登録された端末がありません' }); return true; }
+    sendJson(req, res, 200, {
+      challenge: wa.newChallenge('webauthn.get'),
+      rpId: rp.rpId,
+      allowCredentials: creds.map(function (c) { return { type: 'public-key', id: c.id }; }),
+      userVerification: 'required',
+      timeout: 120000
+    });
+    return true;
+  }
+
+  if (pathname === '/api/webauthn/login/finish' && req.method === 'POST') {
+    readBody(req, function (err, raw) {
+      if (err) { sendJson(req, res, 413, { error: err.message }); return; }
+      let b;
+      try { b = JSON.parse(raw); } catch (e) { sendJson(req, res, 400, { error: 'JSONが不正です' }); return; }
+      const fail = function () {
+        bump(fails, ip, AUTH_FAIL_WINDOW);
+        sendJson(req, res, 401, { error: '確認できませんでした' });
+      };
+      if (!b || !b.id || !b.authenticatorData || !b.clientDataJSON || !b.signature) { fail(); return; }
+
+      const cred = store.readCreds().filter(function (c) { return c.id === b.id; })[0];
+      if (!cred) { fail(); return; }
+      if (!wa.checkClientData(b.clientDataJSON, 'webauthn.get', rp.origin)) { fail(); return; }
+      const ad = wa.checkAuthData(b.authenticatorData, rp.rpId);
+      if (!ad) { fail(); return; }
+      if (!wa.verifySignature(cred, b.authenticatorData, b.clientDataJSON, b.signature)) { fail(); return; }
+      if (ad.counter && cred.counter && ad.counter <= cred.counter) { fail(); return; }  /* 使い回し防止 */
+
+      const list = store.readCreds();
+      list.forEach(function (c) {
+        if (c.id === cred.id) { c.counter = ad.counter; c.lastUsedAt = new Date().toISOString(); }
+      });
+      store.writeCreds(list);
+
+      const h = grantSession(req, res, cred.id);
+      res.writeHead(200, h);
+      res.end(JSON.stringify({ ok: true }));
+    });
+    return true;
+  }
+
+  if (pathname === '/api/webauthn/logout' && req.method === 'POST') {
+    const h = baseHeaders(req);
+    h['Content-Type'] = 'application/json; charset=utf-8';
+    h['Set-Cookie'] = wa.cookieHeader(wa.COOKIE, '', { secure: isSecure(req), maxAge: 0 });
+    res.writeHead(200, h);
+    res.end(JSON.stringify({ ok: true }));
+    return true;
+  }
+
+  if (pathname === '/api/webauthn/forget' && req.method === 'POST') {
+    if (!authed(req)) { authFail(req, res, ip); return true; }
+    const sess = sessionOk(req);
+    const list = store.readCreds().filter(function (c) { return !sess || c.id !== sess.cid; });
+    store.writeCreds(list);
+    const h = baseHeaders(req);
+    h['Content-Type'] = 'application/json; charset=utf-8';
+    h['Set-Cookie'] = wa.cookieHeader(wa.COOKIE, '', { secure: isSecure(req), maxAge: 0 });
+    res.writeHead(200, h);
+    res.end(JSON.stringify({ ok: true, left: list.length }));
+    return true;
+  }
+
+  return false;
+}
+
+function authFail(req, res, ip) {
+  const n = bump(fails, ip, AUTH_FAIL_WINDOW);
+  sendJson(req, res, n > AUTH_FAIL_MAX ? 429 : 401, { error: 'token' });
+}
+
 function baseHeaders(req) {
   const h = {
     'Cache-Control': 'no-store',
@@ -169,7 +338,7 @@ function readBody(req, cb) {
 }
 
 /* 画面に要らないファイルは配らない */
-const PRIVATE_FILES = new Set(['server.js', 'package.json', 'package-lock.json',
+const PRIVATE_FILES = new Set(['server.js', 'webauthn.js', 'package.json', 'package-lock.json',
   'dockerfile', 'fly.toml', '.dockerignore', '.gitignore']);
 function isPrivate(file) {
   const name = path.basename(file).toLowerCase();
@@ -209,16 +378,24 @@ const server = http.createServer(function (req, res) {
   }
 
   if (pathname === '/api/ping') {
-    sendJson(req, res, 200, { ok: true, app: 'restore-cost', needToken: !!TOKEN, rev: readState().rev });
+    sendJson(req, res, 200, {
+      ok: true, app: 'restore-cost',
+      needToken: !!TOKEN,
+      passkeys: store.readCreds().length,
+      signedIn: !!sessionOk(req),
+      rev: readState().rev
+    });
+    return;
+  }
+
+  if (pathname.indexOf('/api/webauthn/') === 0) {
+    if (handlePasskey(req, res, pathname, ip)) return;
+    send(req, res, 404, 'Not Found', 'text/plain; charset=utf-8');
     return;
   }
 
   if (pathname === '/api/state') {
-    if (!tokenOk(req)) {
-      const n = bump(fails, ip, AUTH_FAIL_WINDOW);
-      sendJson(req, res, n > AUTH_FAIL_MAX ? 429 : 401, { error: 'token' });
-      return;
-    }
+    if (!authed(req)) { authFail(req, res, ip); return; }
 
     if (req.method === 'GET') { sendJson(req, res, 200, readState()); return; }
 

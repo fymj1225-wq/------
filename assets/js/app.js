@@ -945,6 +945,101 @@
     fr.readAsText(file, 'utf-8');
   }
 
+  /* ---------------- 開くための画面（顔認証／合言葉） ---------------- */
+
+  function faceLabel() {
+    var ua = navigator.userAgent || '';
+    if (/iPhone|iPad/.test(ua)) return 'Face ID / Touch ID';
+    if (/Android/.test(ua)) return '指紋・顔認証';
+    if (/Windows/.test(ua)) return 'Windows Hello';
+    if (/Mac/.test(ua)) return 'Touch ID';
+    return '端末の認証';
+  }
+
+  function showUnlock(info, again) {
+    var canFace = info.passkeys > 0 && global.Passkey && global.Passkey.supported();
+    var body = '<p class="note" style="margin:0 0 14px">' +
+      (again ? '確認できませんでした。もう一度お試しください。'
+             : 'このデータは持ち主だけが開けるようにしてあります。') + '</p>' +
+      '<div class="menu-list">' +
+      (canFace ? '<button class="btn primary rolebtn" id="unlockFace">' +
+          '<b>' + F.esc(faceLabel()) + 'で開く</b>' +
+          '<span>この端末に登録した顔・指紋で開きます</span></button>' : '') +
+      '<button class="btn rolebtn" id="unlockToken"><b>合言葉で開く</b>' +
+      '<span>' + (canFace ? '顔認証が使えないときはこちら' : '管理している人から聞いた合言葉を入れます') +
+      '</span></button></div>';
+
+    document.body.classList.add('locked');
+    var ov = modal('データを開く', body,
+      '<button class="btn" data-close>あとで（この端末の分だけ見る）</button>');
+    var unlockUi = function () { document.body.classList.remove('locked'); };
+    ov.addEventListener('click', function (e) {
+      if (e.target === ov || e.target.closest('[data-close]')) unlockUi();
+    });
+    var b;
+    if ((b = $('#unlockFace', ov))) b.addEventListener('click', function () {
+      b.disabled = true;
+      b.querySelector('b').textContent = '確認中…';
+      global.Passkey.login().then(function () {
+        ov.remove(); unlockUi();
+        return global.Sync.retryConnect();
+      }).then(function () {
+        renderAll(); syncChip(); toast('開きました');
+      }).catch(function () {
+        ov.remove();
+        showUnlock(info, true);
+      });
+    });
+    if ((b = $('#unlockToken', ov))) b.addEventListener('click', function () {
+      ov.remove(); unlockUi(); askToken();
+    });
+  }
+
+  /* 合言葉で入っている端末に、顔認証へ切り替えてもらう */
+  function offerPasskey() {
+    if (!global.Passkey || !global.Passkey.supported()) return;
+    if (localStorage.getItem('restore-cost-app:nopasskey') === '1') return;
+    global.Passkey.available().then(function (ok) {
+      if (!ok) return;
+      var body = '<p class="note" style="margin:0 0 14px">' +
+        'この端末では <b>' + F.esc(faceLabel()) + '</b> が使えます。<br>' +
+        '登録しておくと、次からは合言葉を打たずに開けます。<br>' +
+        '<b>合言葉はこの端末から消します</b>ので、盗み見される心配もなくなります。</p>';
+      var ov = modal('顔認証で開けるようにする', body,
+        '<button class="btn" id="pkLater">あとで</button>' +
+        '<button class="btn primary" id="pkGo">登録する</button>');
+      $('#pkLater', ov).addEventListener('click', function () {
+        try { localStorage.setItem('restore-cost-app:nopasskey', '1'); } catch (e) {}
+        ov.remove();
+      });
+      $('#pkGo', ov).addEventListener('click', function () {
+        var btn = $('#pkGo', ov);
+        btn.disabled = true; btn.textContent = '確認中…';
+        var tok = null;
+        try { tok = localStorage.getItem('restore-cost-app:token'); } catch (e) {}
+        global.Passkey.register(deviceLabel(), tok).then(function () {
+          global.Sync.setToken('');          /* 合言葉は端末に残さない */
+          ov.remove();
+          syncChip();
+          toast('登録しました。次からは' + faceLabel() + 'で開けます');
+        }).catch(function () {
+          btn.disabled = false; btn.textContent = '登録する';
+          alert('登録できませんでした。時間をおいて、左上のランプからやり直せます。');
+        });
+      });
+    });
+  }
+
+  function deviceLabel() {
+    var ua = navigator.userAgent || '';
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua)) return 'iPad';
+    if (/Android/.test(ua)) return 'Android';
+    if (/Mac/.test(ua)) return 'Mac';
+    if (/Windows/.test(ua)) return 'Windows';
+    return 'ブラウザ';
+  }
+
   /* ---------------- 同期の表示と操作 ---------------- */
 
   var lastSavedAt = '';
@@ -964,6 +1059,8 @@
       else if (S.status === 'pending') { kind = 'warn'; text = head + '未送信の変更'; }
       else if (S.status === 'token') { kind = 'warn'; text = '合言葉が必要'; }
       else { kind = 'ok'; text = head + (S.isMaster() ? '共有中' : '同期済') + (lastSavedAt ? ' ' + lastSavedAt : ''); }
+    } else if (S && S.status === 'locked') {
+      kind = 'warn'; text = 'ロック中';
     } else if (S && S.status === 'offline') {
       kind = 'warn'; text = roleLabel(S.role) + '・未接続';
     } else if (S && S.status === 'token') {
@@ -1046,6 +1143,10 @@
             '</div>') +
         '<div class="menu-list" style="margin-top:8px">' +
           '<button class="btn" id="syncRole">役割を変える（いまは' + roleLabel(S.role) + '）</button>' +
+          (S.serverInfo && S.serverInfo.needToken && global.Passkey && global.Passkey.supported()
+            ? '<button class="btn" id="syncFace">' +
+              (S.serverInfo.passkeys ? faceLabel() + 'の設定' : faceLabel() + 'で開けるようにする') +
+              '</button>' : '') +
         '</div>';
     }
     var ov = modal('データの共有', body, '<button class="btn" data-close>閉じる</button>');
@@ -1069,7 +1170,48 @@
     if ((b = $('#syncRole', ov))) b.addEventListener('click', function () {
       ov.remove(); askRole(global.Sync.role);
     });
+    if ((b = $('#syncFace', ov))) b.addEventListener('click', function () { ov.remove(); faceSettings(); });
     if ((b = $('#syncToken', ov))) b.addEventListener('click', function () { ov.remove(); askToken(); });
+  }
+
+  function faceSettings() {
+    global.Passkey.status().then(function (st) {
+      var mine = st.signedIn;
+      var body = '<dl class="kv">' +
+        '<div><dt>登録済みの端末</dt><dd>' + (st.devices || []).length + ' 台</dd></div>' +
+        '<div><dt>この端末</dt><dd>' + (mine ? faceLabel() + 'で開いています' : '合言葉で開いています') + '</dd></div>' +
+        '</dl>' +
+        '<p class="note" style="margin-top:12px">端末ごとに登録します。' +
+        '登録した端末の顔・指紋の情報がこちらに送られることはありません' +
+        '（端末の中だけで照合され、合鍵の署名だけがやり取りされます）。</p>' +
+        '<div class="menu-list" style="margin-top:14px">' +
+          (mine ? '<button class="btn danger" id="faceOff">この端末の登録を解除する</button>'
+                : '<button class="btn primary" id="faceOn">この端末を登録する</button>') +
+        '</div>';
+      var ov = modal(faceLabel() + 'の設定', body, '<button class="btn" data-close>閉じる</button>');
+      var b;
+      if ((b = $('#faceOn', ov))) b.addEventListener('click', function () {
+        b.disabled = true; b.textContent = '確認中…';
+        var tok = null;
+        try { tok = localStorage.getItem('restore-cost-app:token'); } catch (e) {}
+        global.Passkey.register(deviceLabel(), tok).then(function () {
+          global.Sync.setToken('');
+          ov.remove(); syncChip();
+          toast('登録しました。次からは' + faceLabel() + 'で開けます');
+        }).catch(function () {
+          b.disabled = false; b.textContent = 'この端末を登録する';
+          alert('登録できませんでした。');
+        });
+      });
+      if ((b = $('#faceOff', ov))) b.addEventListener('click', function () {
+        if (!confirm('この端末の' + faceLabel() + '登録を解除します。\n次からは合言葉が必要になります。よろしいですか？')) return;
+        global.Passkey.forget().then(function () {
+          ov.remove();
+          toast('解除しました');
+          location.reload();
+        });
+      });
+    });
   }
 
   function askToken(again) {
@@ -1089,7 +1231,11 @@
       if (!t) { input.focus(); return; }
       global.Sync.setToken(t);
       ov.remove();
-      location.reload();
+      global.Sync.retryConnect().then(function (ok) {
+        syncChip();
+        if (ok) { renderAll(); toast('開きました'); }
+        else if (global.Sync.status === 'locked') askToken(true);
+      });
     };
     $('#tokenOk', ov).addEventListener('click', go);
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
@@ -1224,10 +1370,12 @@
       global.Sync.onApplied = function () { renderAll(); };
       global.Sync.onNotice = toast;
       global.Sync.onNeedRole = askRole;
+      global.Sync.onLocked = function (info) { showUnlock(info, false); };
+      global.Sync.onOfferPasskey = offerPasskey;
       global.Sync.init(Store, function (ok) {
         syncChip();
         if (ok) renderAll();
-        else if (global.Sync.status === 'token') askToken();
+        else if (global.Sync.status === 'token') askToken(true);
       });
     }
   }
