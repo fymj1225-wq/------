@@ -48,6 +48,10 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 .topbar .brand b{font-size:15px;letter-spacing:.04em}
 .topbar .brand span{font-size:11px;color:#8fa2bd}
 .topbar .spacer{flex:1}
+.topbar .search.top{width:200px;background:#26344a;border-color:#3a4b66;color:#e7edf6;padding:5px 9px;border-radius:7px}
+.topbar .search.top::placeholder{color:#8296b3}
+.topbar .search.top:focus{outline:2px solid #3f7bd0;border-color:#5b8ede}
+body.view-home .sidebar{display:none}
 .topbar .saved{font-size:11px;color:#8fa2bd;min-width:96px;text-align:right}
 
 .main{display:flex;flex:1;min-height:0}
@@ -60,6 +64,7 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
   display:flex;flex-direction:column;min-height:0;
 }
 .sidebar-head{padding:10px 12px 8px;border-bottom:1px solid var(--line-soft)}
+.sidebar-title{margin-bottom:0 !important}
 .sidebar-head .row{display:flex;gap:6px;align-items:center}
 .sidebar-title{font-size:12px;font-weight:700;color:var(--ink-sub);letter-spacing:.06em;margin-bottom:8px}
 .search{
@@ -258,4 +263,65 @@ table.cost tfoot td.zero{color:var(--ink-weak);font-weight:400}
   table.cost tbody tr:nth-child(even) td{background:#fff}
   table.cost tbody tr.divider td{background:#efefef !important}
   .overlay,.toast{display:none !important}
+}
+
+
+/* ---------- トップ：車両アカウント一覧 ---------- */
+.home-head{display:flex;align-items:flex-end;gap:16px;padding:2px 2px 4px}
+.home-head h2{margin:0;font-size:17px;letter-spacing:.04em}
+.home-head p{margin:2px 0 0}
+.home-head .home-stat{margin-left:auto;text-align:right}
+.home-head .home-stat span{display:block;font-size:11px;color:var(--ink-weak)}
+.home-head .home-stat b{font-size:14px;font-variant-numeric:tabular-nums}
+
+.acct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:14px}
+.acct{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  box-shadow:var(--shadow);cursor:pointer;display:flex;flex-direction:column;
+  transition:transform .12s,box-shadow .12s,border-color .12s;
+}
+.acct:hover{transform:translateY(-2px);border-color:#a9bdd8;box-shadow:0 3px 6px rgba(20,30,50,.08),0 14px 30px rgba(20,30,50,.13)}
+.acct:active{transform:translateY(0)}
+.acct-photo{
+  position:relative;aspect-ratio:16/10;background:#dfe5ee center/cover no-repeat;
+  display:flex;align-items:center;justify-content:center;
+}
+.acct-photo.empty{background:repeating-linear-gradient(45deg,#eef1f6,#eef1f6 10px,#e7ebf2 10px,#e7ebf2 20px)}
+.acct-photo.empty span{font-size:11.5px;color:#9aa6b6;letter-spacing:.06em}
+.acct-photo .pill{position:absolute;top:8px;left:8px;background:rgba(255,255,255,.92);backdrop-filter:blur(2px)}
+.acct-body{padding:11px 13px 12px;display:flex;flex-direction:column;flex:1}
+.acct-name{font-size:15px;font-weight:700;letter-spacing:.01em}
+.acct-sub{font-size:11.5px;color:var(--ink-weak);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acct-figs{margin:10px 0 0;padding:9px 0 0;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:7px;flex:1}
+.acct-figs div{display:flex;align-items:baseline;gap:8px}
+.acct-figs dt{font-size:11.5px;color:var(--ink-sub);flex:0 0 84px}
+.acct-figs dd{margin:0;flex:1;text-align:right;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.acct-figs dd .u{font-size:11px;font-weight:400;color:var(--ink-weak)}
+.acct-figs dd .brk{display:block;font-size:10.5px;font-weight:400;color:var(--ink-weak);letter-spacing:.01em}
+.acct-total{
+  margin-top:11px;background:#182233;color:#fff;border-radius:8px;
+  padding:8px 11px;display:flex;align-items:baseline;justify-content:space-between;
+}
+.acct-total span{font-size:11px;color:#9db0cc;letter-spacing:.06em}
+.acct-total b{font-size:18px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* ---------- 車両写真（詳細画面） ---------- */
+.veh-info{display:flex;gap:14px;align-items:flex-start}
+.photo-box{flex:0 0 208px;width:208px}
+.photo{
+  width:100%;aspect-ratio:4/3;border-radius:9px;border:1px dashed #c3cddb;
+  background:#f6f8fb center/cover no-repeat;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:11.5px;color:var(--ink-weak);line-height:1.6;transition:border-color .12s,background-color .12s;
+}
+.photo:hover{border-color:var(--accent);background-color:#eef4fc}
+.photo.drag{border-color:var(--accent);background-color:#dceafa;border-style:solid}
+.photo:not(.empty){border-style:solid;border-color:var(--line)}
+.photo-btns{display:flex;gap:6px;margin-top:7px}
+.photo-btns .btn{flex:1;text-align:center}
+.veh-info .veh-form{flex:1;min-width:0}
+
+@media (max-width:900px){
+  .veh-info{flex-direction:column}
+  .photo-box{flex:0 0 auto;width:100%;max-width:280px}
 }

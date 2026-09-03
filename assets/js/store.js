@@ -28,7 +28,8 @@
         ]
       },
       vehicles: [],
-      selectedId: null
+      selectedId: null,
+      view: 'home'
     };
   }
 
@@ -45,6 +46,7 @@
       if (!Array.isArray(v.rows)) v.rows = [];
       if (v.hourlyRate == null) v.hourlyRate = d.settings.hourlyRate;
       if (!v.status) v.status = '作業中';
+      if (v.photo == null) v.photo = '';
       v.rows.forEach(function (r) {
         if (!r.id) r.id = global.F.uid('r');
         if (!r.type) r.type = 'item';
@@ -52,6 +54,7 @@
         if (!r.hours || typeof r.hours !== 'object') r.hours = {};
       });
     });
+    if (d.view !== 'vehicle') d.view = 'home';
     d.version = 1;
     return d;
   }

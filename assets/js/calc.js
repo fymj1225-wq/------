@@ -18,6 +18,7 @@
       totalHours: 0,      // 作業時間総計（外注含む）
       laborCost: 0,       // 人件費 = 自社作業時間 × 時間単価
       purchasePrice: 0,   // 仕入価格
+      spentCost: 0,       // 現状かかった金額（部品代＋外注費＋人件費）
       grandTotal: 0,      // 原価総計
       rowCount: 0,
       firstDate: '',      // いちばん古い作業日
@@ -53,7 +54,8 @@
     t.totalHours = t.selfHours + t.outsourceHours;
     t.purchasePrice = N(vehicle.purchasePrice);
     t.laborCost = Math.round(t.selfHours * N(vehicle.hourlyRate));
-    t.grandTotal = t.purchasePrice + t.materialCost + t.laborCost;
+    t.spentCost = t.materialCost + t.laborCost;
+    t.grandTotal = t.purchasePrice + t.spentCost;
 
     /* 小数の丸め誤差をならす（0.5h刻みの積み上げ対策） */
     t.selfHours = Math.round(t.selfHours * 100) / 100;
@@ -89,6 +91,7 @@
       year: '',
       engine: '',
       status: '作業中',
+      photo: '',
       purchasePrice: 0,
       hourlyRate: (settings && global.F.toNum(settings.hourlyRate)) || 5000,
       memo: '',

@@ -35,6 +35,56 @@
       .filter(function (s) { return s && String(s).trim(); }).join('　');
   }
 
+  /* ---------------- トップ（車両アカウント一覧） ---------------- */
+
+  function photoStyle(v) {
+    return v.photo ? ' style="background-image:url(' + v.photo.replace(/"/g, '') + ')"' : '';
+  }
+
+  function accountCard(v) {
+    var t = Calc.vehicleTotals(v, workers());
+    var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join(' / ');
+    return '<article class="acct" data-open="' + v.id + '">' +
+      '<div class="acct-photo' + (v.photo ? '' : ' empty') + '"' + photoStyle(v) + '>' +
+        (v.photo ? '' : '<span>写真なし</span>') +
+        '<span class="pill st-' + F.esc(v.status || '作業中') + '">' + F.esc(v.status || '作業中') + '</span>' +
+      '</div>' +
+      '<div class="acct-body">' +
+        '<div class="acct-name">' + F.esc(v.name || '（無名）') + '</div>' +
+        '<div class="acct-sub">' + F.esc(sub || '—') + (v.no ? '　#' + F.esc(v.no) : '') + '</div>' +
+        '<dl class="acct-figs">' +
+          '<div><dt>仕入原価</dt><dd>' + F.yen(t.purchasePrice) + '</dd></div>' +
+          '<div><dt>かかった工数</dt><dd>' + (F.hours(t.totalHours) || '0') + '<span class="u"> h</span>' +
+            '<span class="brk">自社 ' + (F.hours(t.selfHours) || '0') + ' / 外注 ' + (F.hours(t.outsourceHours) || '0') + '</span></dd></div>' +
+          '<div><dt>かかった金額</dt><dd>' + F.yen(t.spentCost) +
+            '<span class="brk">部品・外注 ' + F.money(t.materialCost) + ' / 人件費 ' + F.money(t.laborCost) + '</span></dd></div>' +
+        '</dl>' +
+        '<div class="acct-total"><span>総計</span><b>' + F.yen(t.grandTotal) + '</b></div>' +
+      '</div></article>';
+  }
+
+  function renderHome() {
+    var q = ($('#vehSearch').value || '').trim().toLowerCase();
+    var list = Store.state.vehicles.filter(function (v) {
+      return !q || vehicleLabel(v).toLowerCase().indexOf(q) >= 0;
+    });
+    var all = Store.state.vehicles.reduce(function (a, v) {
+      return a + Calc.vehicleTotals(v, workers()).grandTotal;
+    }, 0);
+
+    $('#detail').innerHTML =
+      '<div class="home-head">' +
+        '<div><h2>車両アカウント</h2>' +
+        '<p class="hint">開きたい車両をクリックすると、作業明細に入れます。</p></div>' +
+        '<div class="home-stat"><span>登録 ' + Store.state.vehicles.length + ' 台</span>' +
+        '<b>原価合計 ' + F.yen(all) + '</b></div>' +
+      '</div>' +
+      (list.length
+        ? '<div class="acct-grid">' + list.map(accountCard).join('') + '</div>'
+        : '<div class="empty"><h2>' + (q ? '該当する車両がありません' : 'まだ車両がありません') + '</h2>' +
+          '<p>' + (q ? '検索条件を変えてみてください。' : '上の「＋ 車両を追加」から最初の1台を登録してください。') + '</p></div>');
+  }
+
   /* ---------------- サイドバー ---------------- */
 
   function renderSidebar() {
@@ -217,7 +267,15 @@
       '<section class="card no-print"><div class="card-head"><h3>車両情報</h3><span class="spacer"></span>' +
         '<button class="btn sm" data-vact="dup">この車両を複製</button>' +
         '<button class="btn sm danger" data-vact="del">車両を削除</button>' +
-      '</div><div class="card-body"><div class="veh-form">' +
+      '</div><div class="card-body"><div class="veh-info">' +
+      '<div class="photo-box">' +
+        '<div class="photo' + (v.photo ? '' : ' empty') + '" id="photoBox"' + photoStyle(v) + '>' +
+          (v.photo ? '' : '<span>クリック／ドラッグで<br>写真を追加</span>') + '</div>' +
+        '<div class="photo-btns">' +
+          '<button class="btn sm" data-vact="photo">写真を選ぶ</button>' +
+          '<button class="btn sm danger" id="photoDel" data-vact="photoDel"' + (v.photo ? '' : ' disabled') + '>削除</button>' +
+        '</div></div>' +
+      '<div class="veh-form">' +
         field('車名', 'name', v.name, { span: 2, ph: '例）ユーノス' }) +
         field('グレード', 'grade', v.grade, { ph: '例）Sパッケージ' }) +
         field('色', 'color', v.color, { ph: '例）シルバー' }) +
@@ -228,7 +286,7 @@
         field('仕入価格（税込）', 'purchasePrice', v.purchasePrice, { type: 'money', span: 2 }) +
         field('時間単価（円/h）', 'hourlyRate', v.hourlyRate, { type: 'money', span: 2 }) +
         field('メモ', 'memo', v.memo, { type: 'textarea', span: 6 }) +
-      '</div></div></section>' +
+      '</div></div></div></section>' +
 
       '<section class="card"><div class="card-head"><h3>原価サマリー</h3></div>' +
       '<div class="card-body"><div class="sum-grid" id="sumGrid"></div></div></section>' +
@@ -251,7 +309,7 @@
   /* 合計だけを差し替える（入力中もフォーカスを保つ） */
   function updateTotals() {
     var v = Store.selected();
-    if (!v) return;
+    if (!v || isHome()) return;
     var ws = workers();
     var t = Calc.vehicleTotals(v, ws);
 
@@ -306,10 +364,33 @@
       '<div class="v">' + v + (unit ? '<span class="u">' + unit + '</span>' : '') + '</div></div>';
   }
 
+  function isHome() {
+    return Store.state.view !== 'vehicle' || !Store.selected();
+  }
+
   function renderAll() {
+    var home = isHome();
+    document.body.classList.toggle('view-home', home);
+    $('#btnHome').hidden = home;
+    $('#btnPrint').hidden = home;
     renderSidebar();
-    renderDetail();
+    if (home) renderHome(); else renderDetail();
     refreshUndoButtons();
+  }
+
+  function openVehicle(id) {
+    Store.state.selectedId = id;
+    Store.state.view = 'vehicle';
+    Store.save();
+    renderAll();
+    $('#detail').scrollTop = 0;
+  }
+
+  function goHome() {
+    Store.state.view = 'home';
+    Store.save();
+    renderAll();
+    $('#detail').scrollTop = 0;
   }
 
   function refreshUndoButtons() {
@@ -437,6 +518,10 @@
   }
 
   function onDetailClick(e) {
+    var card = e.target.closest('[data-open]');
+    if (card) { openVehicle(card.dataset.open); return; }
+    if (e.target.closest('#photoBox')) { $('#photoInput').click(); return; }
+
     var v = Store.selected();
     var btn = e.target.closest('button');
     if (!btn || !v) return;
@@ -451,6 +536,10 @@
     if (btn.dataset.vact) {
       if (btn.dataset.vact === 'dup') duplicateVehicle(v);
       else if (btn.dataset.vact === 'del') deleteVehicle(v);
+      else if (btn.dataset.vact === 'photo') $('#photoInput').click();
+      else if (btn.dataset.vact === 'photoDel') {
+        if (confirm('この車両の写真を削除します。よろしいですか？')) setPhoto(v, '');
+      }
       return;
     }
 
@@ -481,7 +570,7 @@
 
   function newVehicle() {
     var v = Calc.emptyVehicle(Store.state.settings);
-    Store.mutate(null, function (s) { s.vehicles.push(v); s.selectedId = v.id; });
+    Store.mutate(null, function (s) { s.vehicles.push(v); s.selectedId = v.id; s.view = 'vehicle'; });
     renderAll();
     var f = $('#detail [data-v="name"]');
     if (f) { f.focus(); f.select(); }
@@ -506,10 +595,55 @@
     Store.mutate(null, function (s) {
       var i = s.vehicles.indexOf(v);
       s.vehicles.splice(i, 1);
-      s.selectedId = s.vehicles.length ? s.vehicles[Math.max(0, i - 1)].id : null;
+      s.selectedId = null;
+      s.view = 'home';
     });
     renderAll();
     toast('車両を削除しました（元に戻すで復活できます）');
+  }
+
+  /* ---------------- 車両写真 ---------------- */
+
+  var PHOTO_MAX_W = 1280, PHOTO_MAX_H = 960;
+
+  function readPhoto(file, done) {
+    if (!file || !/^image\//.test(file.type)) {
+      alert('画像ファイルを選んでください。');
+      return;
+    }
+    var fr = new FileReader();
+    fr.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.width, h = img.height;
+        var k = Math.min(1, PHOTO_MAX_W / w, PHOTO_MAX_H / h);
+        var cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(w * k));
+        cv.height = Math.max(1, Math.round(h * k));
+        var cx = cv.getContext('2d');
+        cx.fillStyle = '#fff';
+        cx.fillRect(0, 0, cv.width, cv.height);
+        cx.drawImage(img, 0, 0, cv.width, cv.height);
+        done(cv.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = function () { alert('この画像は読み込めませんでした。'); };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+
+  function setPhoto(v, dataUrl) {
+    Store.mutate(null, function () { v.photo = dataUrl; });
+    var box = $('#photoBox');
+    if (box) {
+      box.className = 'photo' + (dataUrl ? '' : ' empty');
+      box.style.backgroundImage = dataUrl ? 'url(' + dataUrl + ')' : '';
+      box.innerHTML = dataUrl ? '' : '<span>クリック／ドラッグで<br>写真を追加</span>';
+    }
+    var del = $('#photoDel');
+    if (del) del.disabled = !dataUrl;
+    renderSidebar();
+    refreshUndoButtons();
   }
 
   /* ---------------- モーダル ---------------- */
@@ -710,8 +844,15 @@
       Store.state.selectedId = Store.state.vehicles[0].id;
     }
 
+    var warned = false;
     Store.onSaved = function (ok) {
       $('#savedAt').textContent = ok ? '保存済 ' + F.clock() : '⚠ 保存できません';
+      if (!ok && !warned) {
+        warned = true;
+        alert('データを保存できませんでした。ブラウザの保存容量がいっぱいのようです。\n\n' +
+          '「バックアップ」でJSONを書き出して控えを取ったうえで、\n' +
+          '使い終わった車両の写真を削除するか、車両を減らしてください。');
+      }
     };
 
     var detail = $('#detail');
@@ -724,12 +865,41 @@
 
     $('#vehList').addEventListener('click', function (e) {
       var card = e.target.closest('[data-veh]');
-      if (!card) return;
-      Store.state.selectedId = card.dataset.veh;
-      Store.save();
-      renderAll();
+      if (card) openVehicle(card.dataset.veh);
     });
-    $('#vehSearch').addEventListener('input', renderSidebar);
+    $('#vehSearch').addEventListener('input', function () {
+      if (isHome()) renderHome(); else renderSidebar();
+    });
+
+    $('#btnHome').addEventListener('click', goHome);
+    $('.brand').addEventListener('click', goHome);
+    $('.brand').style.cursor = 'pointer';
+
+    $('#photoInput').addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      var v = Store.selected();
+      if (f && v) readPhoto(f, function (url) { setPhoto(v, url); });
+      e.target.value = '';
+    });
+    detail.addEventListener('dragover', function (e) {
+      var b = e.target.closest('#photoBox');
+      if (!b) return;
+      e.preventDefault();
+      b.classList.add('drag');
+    });
+    detail.addEventListener('dragleave', function (e) {
+      var b = e.target.closest('#photoBox');
+      if (b) b.classList.remove('drag');
+    });
+    detail.addEventListener('drop', function (e) {
+      var b = e.target.closest('#photoBox');
+      if (!b) return;
+      e.preventDefault();
+      b.classList.remove('drag');
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      var v = Store.selected();
+      if (f && v) readPhoto(f, function (url) { setPhoto(v, url); });
+    });
 
     $('#btnNew').addEventListener('click', newVehicle);
     $('#btnWorkers').addEventListener('click', openWorkers);

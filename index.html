@@ -12,7 +12,9 @@
 
   <header class="topbar">
     <div class="brand"><b>レストア原価管理</b><span>車両別 原価表</span></div>
+    <button class="btn dark" id="btnHome" hidden>← 車両一覧</button>
     <button class="btn dark" id="btnNew">＋ 車両を追加</button>
+    <input class="search top" id="vehSearch" type="search" placeholder="車名・管理番号で検索">
     <span class="spacer"></span>
     <button class="btn dark" id="btnUndo" title="元に戻す (Ctrl+Z)">↶ 元に戻す</button>
     <button class="btn dark" id="btnRedo" title="やり直す (Ctrl+Shift+Z)">↷ やり直す</button>
@@ -28,7 +30,6 @@
     <aside class="sidebar no-print">
       <div class="sidebar-head">
         <div class="sidebar-title">車両一覧</div>
-        <input class="search" id="vehSearch" type="search" placeholder="車名・管理番号で検索">
       </div>
       <div class="veh-list" id="vehList"></div>
       <div class="sidebar-foot">
@@ -42,6 +43,7 @@
 </div>
 
 <input type="file" id="fileInput" accept="application/json,.json" hidden>
+<input type="file" id="photoInput" accept="image/*" hidden>
 
 <script src="assets/js/format.js"></script>
 <script src="assets/js/calc.js"></script>
