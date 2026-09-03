@@ -126,10 +126,10 @@ input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
   padding:2px 8px 2px 6px;border:1px solid var(--line);border-radius:999px;background:rgba(12,14,17,.72);
 }
 .status i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 7px currentColor}
-.status.s-見積{color:#8d95a1}
-.status.s-作業中{color:var(--accent)}
+.status.s-待機{color:#8d95a1}
+.status.s-進行中{color:var(--accent)}
+.status.s-保留{color:#ff8f7a}
 .status.s-完了{color:var(--teal)}
-.status.s-納車済{color:var(--blue)}
 
 /* ---------- サイドバー ---------- */
 .sidebar{

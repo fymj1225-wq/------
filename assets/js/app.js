@@ -4,7 +4,7 @@
 
   var F = global.F, Store = global.Store, Calc = global.Calc;
   var $ = function (s, r) { return (r || document).querySelector(s); };
-  var STATUSES = ['見積', '作業中', '完了', '納車済'];
+  var STATUSES = Calc.STATUSES;
 
   /* ---------------- 共通ヘルパー ---------------- */
 
@@ -58,7 +58,7 @@
   function accountCard(v) {
     var t = Calc.vehicleTotals(v, workers());
     var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join('・');
-    var st = v.status || '作業中';
+    var st = Calc.normalizeStatus(v.status);
     return '<article class="acct" data-open="' + v.id + '">' +
       '<div class="acct-photo' + (v.photo ? '' : ' empty') + '"' + photoStyle(v) + '>' +
         '<span class="scrim"></span>' +
@@ -134,7 +134,7 @@
     var html = list.map(function (v) {
       var t = Calc.vehicleTotals(v, workers());
       var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join(' / ') || '—';
-      var st = v.status || '作業中';
+      var st = Calc.normalizeStatus(v.status);
       return '<div class="veh-card' + (v.id === Store.state.selectedId ? ' active' : '') + '" data-veh="' + v.id + '">' +
         '<div class="nm">' + vehicleTitleHtml(v) +
         '<span class="status s-' + F.esc(st) + '"><i></i>' + F.esc(st) + '</span></div>' +

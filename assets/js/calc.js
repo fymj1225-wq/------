@@ -3,6 +3,18 @@
   'use strict';
   var N = global.F.toNum;
 
+  /* 車両の状態。並びがそのまま選択肢の順になる */
+  var STATUSES = ['待機', '進行中', '保留', '完了'];
+
+  /* 以前の呼び方から読み替える（入力済みのデータをそのまま使えるように） */
+  var OLD = { '見積': '待機', '作業中': '進行中', '納車済': '完了' };
+
+  function normalizeStatus(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (OLD[s]) return OLD[s];
+    return STATUSES.indexOf(s) >= 0 ? s : STATUSES[0];
+  }
+
   /* 1車両分の集計
      workers: [{id,name}]  … 表示中の職人列
      戻り値の金額はすべて税込（見本の車両管理表に合わせる） */
@@ -90,7 +102,7 @@
       no: '',
       year: '',
       engine: '',
-      status: '作業中',
+      status: STATUSES[0],
       photo: '',
       purchasePrice: 0,
       hourlyRate: (settings && global.F.toNum(settings.hourlyRate)) || 5000,
@@ -100,5 +112,8 @@
     };
   }
 
-  global.Calc = { vehicleTotals: vehicleTotals, emptyRow: emptyRow, emptyVehicle: emptyVehicle };
+  global.Calc = {
+    vehicleTotals: vehicleTotals, emptyRow: emptyRow, emptyVehicle: emptyVehicle,
+    STATUSES: STATUSES, normalizeStatus: normalizeStatus
+  };
 })(window);

@@ -45,7 +45,7 @@
       if (!v.id) v.id = global.F.uid('v');
       if (!Array.isArray(v.rows)) v.rows = [];
       if (v.hourlyRate == null) v.hourlyRate = d.settings.hourlyRate;
-      if (!v.status) v.status = '作業中';
+      v.status = global.Calc.normalizeStatus(v.status);
       if (v.photo == null) v.photo = '';
       v.rows.forEach(function (r) {
         if (!r.id) r.id = global.F.uid('r');
