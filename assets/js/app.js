@@ -964,6 +964,8 @@
       else if (S.status === 'pending') { kind = 'warn'; text = head + '未送信の変更'; }
       else if (S.status === 'token') { kind = 'warn'; text = '合言葉が必要'; }
       else { kind = 'ok'; text = head + (S.isMaster() ? '共有中' : '同期済') + (lastSavedAt ? ' ' + lastSavedAt : ''); }
+    } else if (S && S.status === 'offline') {
+      kind = 'warn'; text = roleLabel(S.role) + '・未接続';
     } else if (S && S.status === 'token') {
       kind = 'warn'; text = '合言葉が必要';
     }
@@ -990,7 +992,7 @@
       var b = e.target.closest('[data-role]');
       if (!b) return;
       ov.remove();
-      global.Sync.setRole(b.dataset.role, Store);
+      global.Sync.setRole(b.dataset.role);
       syncChip();
       toast(roleLabel(b.dataset.role) + 'に設定しました');
     });
@@ -999,7 +1001,16 @@
   function openSync() {
     var S = global.Sync;
     var body;
-    if (!S || !S.enabled) {
+    if (S && !S.enabled && S.status === 'offline') {
+      body = '<p class="note">この端末は <b>' + roleLabel(S.role) + '</b> として設定されていますが、' +
+        'いま置き場所（PC）につながっていません。<br><br>' +
+        '入力はこのまま続けられます。つながった時点で自動的にやり取りします。' +
+        (S.isMaster() ? '' : '<br><br>PCの電源が入っているか、同じWi-Fiにいるか確認してください。') + '</p>' +
+        '<div class="menu-list" style="margin-top:14px">' +
+          '<button class="btn" id="syncPull">いますぐつなぎ直す</button>' +
+          '<button class="btn" id="syncRole">役割を変える（いまは' + roleLabel(S.role) + '）</button>' +
+        '</div>';
+    } else if (!S || !S.enabled) {
       body = '<p class="note">いまは <b>この端末だけ</b> にデータを保存しています。<br><br>' +
         'PCと携帯で同じ内容を見たい場合は、PCで共有サーバーを立ち上げて、そのURLを' +
         '携帯からも開いてください。手順は同梱の README に書いてあります。</p>' +
@@ -1041,19 +1052,19 @@
     var b;
     if ((b = $('#syncPull', ov))) b.addEventListener('click', function () {
       ov.remove();
-      if (global.Sync.isMaster() && global.Sync.dirty) global.Sync.push(Store);
-      else global.Sync.pull(Store);
+      if (global.Sync.isMaster() && global.Sync.dirty) global.Sync.push();
+      else global.Sync.pull();
       toast('同期しました');
     });
     if ((b = $('#syncSend', ov))) b.addEventListener('click', function () {
       if (!confirm('この端末の内容で、共有されている内容を置き換えます。\n親機で加えた変更が消える場合があります。よろしいですか？')) return;
       ov.remove();
-      global.Sync.sendLocal(Store).then(function () { toast('送信しました'); });
+      global.Sync.sendLocal().then(function () { toast('送信しました'); });
     });
     if ((b = $('#syncDrop', ov))) b.addEventListener('click', function () {
       if (!confirm('この端末で加えた変更を捨てて、親機の内容に合わせます。よろしいですか？')) return;
       ov.remove();
-      global.Sync.adoptServer(Store).then(function () { renderAll(); toast('親機の内容に合わせました'); });
+      global.Sync.adoptServer().then(function () { renderAll(); toast('親機の内容に合わせました'); });
     });
     if ((b = $('#syncRole', ov))) b.addEventListener('click', function () {
       ov.remove(); askRole(global.Sync.role);
@@ -1066,6 +1077,22 @@
     if (t === null) return;
     global.Sync.setToken(t.trim());
     location.reload();
+  }
+
+  /* オフラインでも開けるようにする（https か localhost のときだけ有効） */
+  function registerWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      reg.addEventListener('updatefound', function () {
+        var w = reg.installing;
+        if (!w) return;
+        w.addEventListener('statechange', function () {
+          if (w.state === 'installed' && navigator.serviceWorker.controller) {
+            toast('新しい版があります。開き直すと切り替わります');
+          }
+        });
+      });
+    }).catch(function () { /* 使えない環境なら何もしない */ });
   }
 
   /* ---------------- 起動 ---------------- */
@@ -1170,6 +1197,7 @@
     });
 
     window.addEventListener('beforeunload', function () { Store.saveNow(); });
+    registerWorker();
     $('#savedAt').addEventListener('click', openSync);
 
     renderAll();
