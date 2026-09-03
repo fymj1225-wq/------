@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>レストア原価管理</title>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand"><b>レストア原価管理</b><span>車両別 原価表</span></div>
+    <button class="btn dark" id="btnNew">＋ 車両を追加</button>
+    <span class="spacer"></span>
+    <button class="btn dark" id="btnUndo" title="元に戻す (Ctrl+Z)">↶ 元に戻す</button>
+    <button class="btn dark" id="btnRedo" title="やり直す (Ctrl+Shift+Z)">↷ やり直す</button>
+    <button class="btn dark" id="btnWorkers">職人・単価</button>
+    <button class="btn dark" id="btnCsv">CSV書出</button>
+    <button class="btn dark" id="btnBackup">バックアップ</button>
+    <button class="btn dark" id="btnRestore">復元</button>
+    <button class="btn dark" id="btnPrint">印刷 / PDF</button>
+    <span class="saved" id="savedAt"></span>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar no-print">
+      <div class="sidebar-head">
+        <div class="sidebar-title">車両一覧</div>
+        <input class="search" id="vehSearch" type="search" placeholder="車名・管理番号で検索">
+      </div>
+      <div class="veh-list" id="vehList"></div>
+      <div class="sidebar-foot">
+        <span id="vehCount">0 台</span>
+        <span id="grandAll"></span>
+      </div>
+    </aside>
+
+    <main class="detail" id="detail"></main>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="application/json,.json" hidden>
+
+<script src="assets/js/format.js"></script>
+<script src="assets/js/calc.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/sample.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
