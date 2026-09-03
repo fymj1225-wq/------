@@ -150,7 +150,10 @@ function sessionOk(req) {
 function authed(req) { return tokenOk(req) || !!sessionOk(req); }
 
 function isSecure(req) {
-  return PUBLIC_MODE || String(req.headers['x-forwarded-proto'] || '') === 'https';
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  if (proto) return proto === 'https';
+  if (req.socket && req.socket.encrypted) return true;
+  return PUBLIC_MODE;
 }
 
 function grantSession(req, res, cid) {
@@ -472,6 +475,22 @@ server.listen(PORT, '0.0.0.0', function () {
   console.log('  データ      : ' + STATE_FILE + (doc.rev ? '（保存済 rev.' + doc.rev + '）' : '（まだ空）'));
   console.log('  合言葉      : ' + (TOKEN ? '設定あり' : 'なし（同じネットワークの人は誰でも見られます）'));
   console.log('');
+  const warn = [];
+  if (PUBLIC_MODE) {
+    let onVolume = false;
+    try { onVolume = !DATA_DIR.startsWith(ROOT); } catch (e) {}
+    if (!onVolume) {
+      warn.push('DATA_DIR がアプリと同じ場所です。入れ替えのたびにデータが消えるおそれがあります。');
+    }
+    if (ORIGIN_OVERRIDE) {
+      warn.push('RESTORE_ORIGIN を指定しています（' + ORIGIN_OVERRIDE + '）。実際に開くURLと違うと顔認証が通りません。');
+    }
+  }
+  if (warn.length) {
+    console.log('  ⚠ 確認してください');
+    warn.forEach(function (w) { console.log('    ・' + w); });
+    console.log('');
+  }
   console.log('  止めるときは Ctrl + C');
   console.log('');
 });

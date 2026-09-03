@@ -83,8 +83,8 @@ PCと携帯で同じ内容を見たいときは、次の「共有サーバー」
 - 署名は毎回使い捨てです。盗み見て再送しても通りません（実際に試して確認済み）
 - 端末を紛失したら、他の端末の「設定 → 顔認証の設定」から登録を解除できます。
   合言葉を変えれば、登録済みの端末も全部締め出せます
-- `https://` でのみ使えます（ブラウザの決まり）。社内LANのIPアドレスでは
-  従来どおり合言葉になります
+- `https://` かつ**ドメイン名**で開いたときだけ使えます（ブラウザの決まり）。
+  社内LANのIPアドレス（`192.168.…`）では従来どおり合言葉になります
 
 **設定を変えるとき**は、左上のランプ →「Face ID の設定」から、
 登録・解除ができます。
@@ -99,27 +99,12 @@ node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"
 
 出てきた文字列を控えておきます。**12文字未満だとサーバーが起動しません。**
 
-### 2. 置き場所を作る（Fly.io の例）
+### 2. 置き場所を作る
 
-同梱の `Dockerfile` と `fly.toml` がそのまま使えます。
-
-```bash
-# 初回だけ
-npm install -g @flyctl/flyctl     # または https://fly.io/docs/flyctl/install/
-fly auth signup                   # アカウントを作る
-
-# このフォルダで
-fly launch --no-deploy --copy-config    # fly.toml の app 名を好きな名前に変えておく
-fly volumes create restore_data --size 1 --region nrt   # データを置くディスク（1GB）
-fly secrets set RESTORE_TOKEN='さっき作った合言葉'
-fly deploy
-```
+**手順は [DEPLOY.md](DEPLOY.md) にまとめてあります。** 上から順にやれば終わります。
+同梱の `Dockerfile` と `fly.toml` をそのまま使います。
 
 終わると `https://好きな名前.fly.dev` が発行されます。**これが新しいURLです。**
-
-> 料金は各社の設定次第で変わります。この構成は「いちばん小さいマシン＋1GBのディスク」
-> なので安く済む部類ですが、最新の金額は必ず各社の料金ページで確認してください。
-> Fly.io 以外でも、Docker が動いて消えないディスクを付けられるところなら同じ手順で置けます。
 
 ### 3. 携帯とPCで開く
 
@@ -355,6 +340,7 @@ JSON ファイルを保存しておいてください。
 ```
 index.html               画面の骨組み
 manifest.webmanifest     ホーム画面に追加したときの設定
+DEPLOY.md                公開の手順書
 sw.js                    オフライン起動の仕掛け（Service Worker）
 server.js                共有サーバー（Node.js だけで動く／外部ライブラリなし）
 webauthn.js              顔認証（パスキー）とログイン状態の検証
