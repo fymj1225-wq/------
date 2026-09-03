@@ -12,7 +12,15 @@
 <div class="app">
 
   <header class="topbar">
-    <div class="brand"><b>レストア原価管理</b><span>車両別 原価表</span></div>
+    <div class="brand" title="車両一覧へ">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="21" height="21">
+        <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".3"/>
+        <path d="M4.9 17.4A9 9 0 0 1 12 2.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M12 12l4.6-3.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="1.7" fill="currentColor"/>
+      </svg></span>
+      <b>レストア原価管理</b><span>COST&nbsp;LEDGER</span>
+    </div>
     <button class="btn dark" id="btnHome" hidden>←<span class="lbl"> 車両一覧</span></button>
     <button class="btn dark" id="btnNew">＋<span class="lbl"> 車両を追加</span></button>
     <input class="search top" id="vehSearch" type="search" placeholder="車名・管理番号で検索">

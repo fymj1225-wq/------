@@ -43,24 +43,47 @@
 
   function accountCard(v) {
     var t = Calc.vehicleTotals(v, workers());
-    var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join(' / ');
+    var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join('・');
+    var st = v.status || '作業中';
     return '<article class="acct" data-open="' + v.id + '">' +
       '<div class="acct-photo' + (v.photo ? '' : ' empty') + '"' + photoStyle(v) + '>' +
-        (v.photo ? '' : '<span>写真なし</span>') +
-        '<span class="pill st-' + F.esc(v.status || '作業中') + '">' + F.esc(v.status || '作業中') + '</span>' +
+        '<span class="scrim"></span>' +
+        '<span class="status s-' + F.esc(st) + '"><i></i>' + F.esc(st) + '</span>' +
+        (v.no ? '<span class="tag">#' + F.esc(v.no) + '</span>' : '') +
+        '<div class="acct-title">' +
+          '<div class="acct-name">' + F.esc(v.name || '（無名）') + '</div>' +
+          '<div class="acct-sub">' + F.esc(sub || '—') + '</div>' +
+        '</div>' +
       '</div>' +
-      '<div class="acct-body">' +
-        '<div class="acct-name">' + F.esc(v.name || '（無名）') + '</div>' +
-        '<div class="acct-sub">' + F.esc(sub || '—') + (v.no ? '　#' + F.esc(v.no) : '') + '</div>' +
-        '<dl class="acct-figs">' +
-          '<div><dt>仕入原価</dt><dd>' + F.yen(t.purchasePrice) + '</dd></div>' +
-          '<div><dt>工数</dt><dd>' + (F.hours(t.totalHours) || '0') + '<span class="u"> h</span>' +
-            '<span class="brk">自社 ' + (F.hours(t.selfHours) || '0') + ' / 外注 ' + (F.hours(t.outsourceHours) || '0') + '</span></dd></div>' +
-          '<div><dt>金額</dt><dd>' + F.yen(t.spentCost) +
-            '<span class="brk">部品・外注 ' + F.money(t.materialCost) + ' / 人件費 ' + F.money(t.laborCost) + '</span></dd></div>' +
-        '</dl>' +
-        '<div class="acct-total"><span>総計</span><b>' + F.yen(t.grandTotal) + '</b></div>' +
-      '</div></article>';
+      '<dl class="acct-figs">' +
+        '<div><dt>仕入原価</dt><dd class="n">' + F.yen(t.purchasePrice) + '</dd></div>' +
+        '<div><dt>工数</dt><dd class="n">' + (F.hours(t.totalHours) || '0') + '<span class="u">h</span>' +
+          '<span class="brk">自社 ' + (F.hours(t.selfHours) || '0') + '・外注 ' + (F.hours(t.outsourceHours) || '0') + '</span></dd></div>' +
+        '<div><dt>金額</dt><dd class="n">' + F.yen(t.spentCost) +
+          '<span class="brk">部品外注 ' + F.money(t.materialCost) + '・人件費 ' + F.money(t.laborCost) + '</span></dd></div>' +
+      '</dl>' +
+      compBar(t, true) +
+      '<div class="acct-total"><span>総計</span><b class="n">' + F.yen(t.grandTotal) + '</b></div>' +
+      '</article>';
+  }
+
+  /* 原価の内訳を1本の帯で見せる */
+  function compBar(t, slim) {
+    var total = t.grandTotal || 1;
+    var w = function (x) { return (Math.max(0, x) / total * 100).toFixed(2) + '%'; };
+    return '<div class="comp' + (slim ? ' slim' : '') + '">' +
+      '<div class="comp-bar">' +
+        '<span class="seg s1" style="width:' + w(t.purchasePrice) + '"></span>' +
+        '<span class="seg s2" style="width:' + w(t.materialCost) + '"></span>' +
+        '<span class="seg s3" style="width:' + w(t.laborCost) + '"></span>' +
+      '</div>' +
+      (slim ? '' :
+        '<div class="comp-legend">' +
+          '<span><i class="s1"></i>仕入 <b class="n">' + F.money(t.purchasePrice) + '</b></span>' +
+          '<span><i class="s2"></i>部品・外注 <b class="n">' + F.money(t.materialCost) + '</b></span>' +
+          '<span><i class="s3"></i>人件費 <b class="n">' + F.money(t.laborCost) + '</b></span>' +
+        '</div>') +
+      '</div>';
   }
 
   function renderHome() {
@@ -75,13 +98,13 @@
     $('#detail').innerHTML =
       '<div class="home-head">' +
         '<div><h2>車両アカウント</h2>' +
-        '<p class="hint">開きたい車両をクリックすると、作業明細に入れます。</p></div>' +
-        '<div class="home-stat"><span>登録 ' + Store.state.vehicles.length + ' 台</span>' +
-        '<b>原価合計 ' + F.yen(all) + '</b></div>' +
+        '<p class="hint">車両を選ぶと作業明細に入れます。</p></div>' +
+        '<div class="home-stat"><span>登録 ' + Store.state.vehicles.length + ' 台 ／ 原価合計</span>' +
+        '<b class="n">' + F.yen(all) + '</b></div>' +
       '</div>' +
       (list.length
         ? '<div class="acct-grid">' + list.map(accountCard).join('') + '</div>'
-        : '<div class="empty"><h2>' + (q ? '該当する車両がありません' : 'まだ車両がありません') + '</h2>' +
+        : '<div class="emptystate"><h2>' + (q ? '該当する車両がありません' : 'まだ車両がありません') + '</h2>' +
           '<p>' + (q ? '検索条件を変えてみてください。' : '上の「＋ 車両を追加」から最初の1台を登録してください。') + '</p></div>');
   }
 
@@ -97,11 +120,12 @@
     var html = list.map(function (v) {
       var t = Calc.vehicleTotals(v, workers());
       var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join(' / ') || '—';
+      var st = v.status || '作業中';
       return '<div class="veh-card' + (v.id === Store.state.selectedId ? ' active' : '') + '" data-veh="' + v.id + '">' +
         '<div class="nm">' + F.esc(v.name || '（無名）') +
-        '<span class="pill st-' + F.esc(v.status || '作業中') + '">' + F.esc(v.status || '作業中') + '</span></div>' +
+        '<span class="status s-' + F.esc(st) + '"><i></i>' + F.esc(st) + '</span></div>' +
         '<div class="sub">' + F.esc(sub) + (v.no ? '　#' + F.esc(v.no) : '') + '</div>' +
-        '<div class="tot"><small>原価総計</small>' + F.yen(t.grandTotal) + '</div>' +
+        '<div class="tot"><small>総計</small><b class="n">' + F.yen(t.grandTotal) + '</b></div>' +
         '</div>';
     }).join('');
 
@@ -112,7 +136,7 @@
     var all = Store.state.vehicles.reduce(function (a, v) {
       return a + Calc.vehicleTotals(v, workers()).grandTotal;
     }, 0);
-    $('#grandAll').textContent = '合計 ' + F.yen(all);
+    $('#grandAll').innerHTML = '<b class="n">' + F.yen(all) + '</b>';
   }
 
   /* ---------------- 明細テーブル ---------------- */
@@ -265,7 +289,7 @@
     var v = Store.selected();
     var el = $('#detail');
     if (!v) {
-      el.innerHTML = '<div class="empty"><h2>車両が選ばれていません</h2>' +
+      el.innerHTML = '<div class="emptystate"><h2>車両が選ばれていません</h2>' +
         '<p>左の一覧から選ぶか、上の「＋ 車両を追加」で新しい箱を作ってください。</p></div>';
       return;
     }
@@ -303,7 +327,7 @@
       '</div></div></details>' +
 
       '<section class="card" id="sumCard"><div class="card-head"><h3>原価サマリー</h3></div>' +
-      '<div class="card-body"><div class="sum-grid" id="sumGrid"></div></div></section>' +
+      '<div class="card-body" id="sumBody"></div></section>' +
 
       '<section class="card" id="tblCard"><div class="card-head"><h3>作業明細</h3><span class="spacer"></span>' +
         '<span class="hint">Enterで下の行へ／最終行なら新しい行を追加</span>' +
@@ -329,18 +353,22 @@
     var ws = workers();
     var t = Calc.vehicleTotals(v, ws);
 
-    var g = $('#sumGrid');
+    var g = $('#sumBody');
     if (g) {
       g.innerHTML =
-        sumCell('仕入価格', F.yen(t.purchasePrice)) +
-        sumCell('部品代', F.yen(t.partCost)) +
-        sumCell('外注費', F.yen(t.outsourceCost)) +
-        sumCell('部品代＋外注費', F.yen(t.materialCost), 'hi') +
-        sumCell('自社作業時間', F.hours(t.selfHours) || '0', '', ' h') +
-        sumCell('人件費（@' + F.money(v.hourlyRate) + '）', F.yen(t.laborCost), 'hi') +
-        sumCell('外注作業時間', F.hours(t.outsourceHours) || '0', '', ' h') +
-        sumCell('作業時間総計', F.hours(t.totalHours) || '0', '', ' h') +
-        sumCell('原価総計（税込）', F.yen(t.grandTotal), 'grand');
+        '<div class="grand"><span class="k">原価総計（税込）</span>' +
+        '<b class="n">' + F.yen(t.grandTotal) + '</b></div>' +
+        compBar(t) +
+        '<div class="sum-grid" id="sumGrid">' +
+          sumCell('仕入価格', F.yen(t.purchasePrice)) +
+          sumCell('部品代', F.yen(t.partCost)) +
+          sumCell('外注費', F.yen(t.outsourceCost)) +
+          sumCell('部品代＋外注費', F.yen(t.materialCost), 'hi') +
+          sumCell('自社作業時間', F.hours(t.selfHours) || '0', '', 'h') +
+          sumCell('人件費 @' + F.money(v.hourlyRate), F.yen(t.laborCost), 'hi') +
+          sumCell('外注作業時間', F.hours(t.outsourceHours) || '0', '', 'h') +
+          sumCell('作業時間総計', F.hours(t.totalHours) || '0', '', 'h') +
+        '</div>';
     }
 
     setTot('#tot-part', t.partCost, F.money);
@@ -361,11 +389,11 @@
 
     // サイドバーの金額も追随させる
     var card = $('.veh-card[data-veh="' + v.id + '"] .tot');
-    if (card) card.innerHTML = '<small>原価総計</small>' + F.yen(t.grandTotal);
+    if (card) card.innerHTML = '<small>総計</small><b class="n">' + F.yen(t.grandTotal) + '</b>';
     var all = Store.state.vehicles.reduce(function (a, x) {
       return a + Calc.vehicleTotals(x, ws).grandTotal;
     }, 0);
-    $('#grandAll').textContent = '合計 ' + F.yen(all);
+    $('#grandAll').innerHTML = '<b class="n">' + F.yen(all) + '</b>';
   }
 
   function setTot(sel, val, fmt) {
@@ -377,7 +405,7 @@
 
   function sumCell(k, v, cls, unit) {
     return '<div class="sum ' + (cls || '') + '"><div class="k">' + F.esc(k) + '</div>' +
-      '<div class="v">' + v + (unit ? '<span class="u">' + unit + '</span>' : '') + '</div></div>';
+      '<div class="v n">' + v + (unit ? '<span class="u">' + unit + '</span>' : '') + '</div></div>';
   }
 
   function isHome() {
