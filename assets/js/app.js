@@ -276,7 +276,20 @@
     var v = Store.selected();
     var host = $('#printTbl');
     if (!host || !v) return;
-    host.innerHTML = staticTableHtml(v);
+    host.innerHTML = staticTableHtml(v) + printSummary(v);
+  }
+
+  /* 元の車両管理表と同じ位置（表の右下）に置く集計 */
+  function printSummary(v) {
+    var t = Calc.vehicleTotals(v, workers());
+    var row = function (k1, v1, k2, v2) {
+      return '<tr><td class="k">' + k1 + '</td><td class="v">' + v1 + '</td>' +
+        '<td class="k">' + k2 + '</td><td class="v">' + v2 + '</td></tr>';
+    };
+    return '<table class="print-sum">' +
+      row('自社作業時間合計', (F.hours(t.selfHours) || '0') + ' h', '人件費 @' + F.money(v.hourlyRate), F.yen(t.laborCost)) +
+      row('作業時間総計（外注含む）', (F.hours(t.totalHours) || '0') + ' h', '総計', F.yen(t.grandTotal)) +
+      '</table>';
   }
 
   /* ---------------- 詳細画面 ---------------- */
