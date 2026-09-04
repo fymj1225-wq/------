@@ -586,5 +586,15 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
   table.print-tbl td.tx{padding:1px 3px;word-break:break-word;vertical-align:top}
   table.print-tbl td.num{padding:1px 3px;text-align:right;font-family:var(--mono)}
   table.print-tbl td.no{text-align:center;color:#666}
+  /* 合計は最後の行として1回だけ出す（tfoot だとページごとに繰り返される） */
+  table.print-tbl tr.total-row{break-inside:avoid}
+  table.print-tbl tr.total-row td{
+    background:#e9e9e9 !important;color:#000;font-weight:700;
+    border-top:1.4px solid #666;padding:3px 4px;text-align:right;
+    font-family:var(--mono);
+  }
+  table.print-tbl tr.total-row td.lbl{
+    text-align:right;letter-spacing:.1em;font-family:inherit;padding-right:8px;
+  }
   .overlay,.toast{display:none !important}
 }

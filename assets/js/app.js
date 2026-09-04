@@ -248,7 +248,7 @@
       ws.map(function (w) { return '<th class="c-hour">' + F.esc(w.name) + '</th>'; }).join('') +
       '<th class="c-out">外注</th></tr></thead>';
     var idx = 0;
-    var body = '<tbody>' + v.rows.map(function (r) {
+    var body = v.rows.map(function (r) {
       if (r.type === 'divider') {
         return '<tr class="divider"><td class="no"></td><td colspan="' + (colCount() - 2) + '">' +
           F.esc(r.work) + '</td></tr>';
@@ -264,12 +264,15 @@
           return '<td class="num">' + F.esc(hourCell(r.hours && r.hours[w.id])) + '</td>';
         }).join('') +
         '<td class="num">' + F.esc(hourCell(r.outHours)) + '</td></tr>';
-    }).join('') + '</tbody>';
-    var foot = '<tfoot><tr><td class="lbl" colspan="4">合計（税込）</td>' +
+    }).join('');
+
+    /* 合計は tfoot にするとページごとに繰り返されるので、最後の行として入れる */
+    var total = '<tr class="total-row"><td class="lbl" colspan="4">合計（税込）</td>' +
       '<td>' + F.money(t.partCost) + '</td><td>' + F.money(t.outsourceCost) + '</td>' +
       ws.map(function (w) { return '<td>' + (F.hours(t.workerHours[w.id]) || '0') + '</td>'; }).join('') +
-      '<td>' + (F.hours(t.outsourceHours) || '0') + '</td></tr></tfoot>';
-    return '<table class="cost print-tbl">' + head + body + foot + '</table>';
+      '<td>' + (F.hours(t.outsourceHours) || '0') + '</td></tr>';
+
+    return '<table class="cost print-tbl">' + head + '<tbody>' + body + total + '</tbody></table>';
   }
 
   function preparePrint() {
