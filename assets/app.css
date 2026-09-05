@@ -547,14 +547,6 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
   .print-head .t .spec{font-weight:400;font-size:9px;margin-left:10px}
   .print-head .p{display:inline-block;border:1px solid #333;border-top:0;padding:2px 10px;font-family:var(--mono)}
   .veh-form{display:none}
-  #sumCard{display:none}          /* 集計は表の下にまとめて出す */
-
-  table.print-sum{
-    border-collapse:collapse;margin:4px 0 0 auto;font-size:8.4px;
-  }
-  table.print-sum td{border:1px solid #999;padding:2px 7px;white-space:nowrap}
-  table.print-sum td.k{background:#eee;font-weight:700}
-  table.print-sum td.v{text-align:right;font-family:var(--mono);font-weight:700;min-width:74px}
   #sumBody .grand{margin:0 0 5px;gap:8px}
   #sumBody .grand .k{color:#444}
   #sumBody .grand b{font-size:14px;color:#000;text-shadow:none}
