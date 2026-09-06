@@ -6,7 +6,7 @@
    =================================================================== */
 'use strict';
 
-var CACHE = 'restore-cost-v15';
+var CACHE = 'restore-cost-v16';
 var SHELL = [
   './',
   'index.html',

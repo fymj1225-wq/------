@@ -548,7 +548,13 @@ body.locked .main{filter:blur(18px);opacity:.45;pointer-events:none;user-select:
 
   .overlay{align-items:flex-end;padding:0}
   .modal{max-width:none;border-radius:16px 16px 0 0;max-height:92vh;padding-bottom:var(--sab)}
-  .modal-foot .btn{flex:1;text-align:center;padding:11px}
+  /* ボタンは縦に積み、決定を上に置く。
+     画面の右下は他のものが重なることがあるので、そこを避ける */
+  .modal-foot{
+    flex-direction:column-reverse;gap:8px;
+    padding:12px 15px calc(12px + 34px);
+  }
+  .modal-foot .btn{width:100%;flex:none;text-align:center;padding:13px}
   .toast{bottom:calc(16px + var(--sab));width:calc(100% - 32px);text-align:center}
 }
 
