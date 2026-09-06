@@ -125,12 +125,9 @@
     });
 
     var ws = workers();
-    var sum = { buy: 0, total: 0 };
-    pool.forEach(function (v) {
-      var t = Calc.vehicleTotals(v, ws);
-      sum.buy += t.purchasePrice;
-      sum.total += t.grandTotal;
-    });
+    var buyTotal = pool.reduce(function (a, v) {
+      return a + Calc.vehicleTotals(v, ws).purchasePrice;
+    }, 0);
     var archivedCount = vehiclesOf(true).length;
 
     $('#detail').innerHTML =
@@ -143,8 +140,7 @@
         '</div>' +
         '<div class="home-stats">' +
           '<div><span>' + (showArchive ? 'アーカイブ' : '稼働中') + '</span><b class="n">' + pool.length + '<small> 台</small></b></div>' +
-          '<div><span>仕入合計</span><b class="n">' + F.yen(sum.buy) + '</b></div>' +
-          '<div class="hi"><span>原価合計</span><b class="n">' + F.yen(sum.total) + '</b></div>' +
+          '<div class="hi"><span>仕入合計</span><b class="n">' + F.yen(buyTotal) + '</b></div>' +
         '</div>' +
       '</div>' +
       '<div class="home-tabs">' +
@@ -191,9 +187,9 @@
     $('#vehCount').textContent = vehiclesOf(false).length + ' 台';
 
     var all = vehiclesOf(false).reduce(function (a, v) {
-      return a + Calc.vehicleTotals(v, workers()).grandTotal;
+      return a + Calc.vehicleTotals(v, workers()).purchasePrice;
     }, 0);
-    $('#grandAll').innerHTML = '<b class="n">' + F.yen(all) + '</b>';
+    $('#grandAll').innerHTML = '仕入 <b class="n">' + F.yen(all) + '</b>';
   }
 
   /* ---------------- 明細テーブル ---------------- */
@@ -460,9 +456,9 @@
     var card = $('.veh-card[data-veh="' + v.id + '"] .tot');
     if (card) card.innerHTML = '<small>総計</small><b class="n">' + F.yen(t.grandTotal) + '</b>';
     var all = vehiclesOf(false).reduce(function (a, x) {
-      return a + Calc.vehicleTotals(x, ws).grandTotal;
+      return a + Calc.vehicleTotals(x, ws).purchasePrice;
     }, 0);
-    $('#grandAll').innerHTML = '<b class="n">' + F.yen(all) + '</b>';
+    $('#grandAll').innerHTML = '仕入 <b class="n">' + F.yen(all) + '</b>';
   }
 
   function setTot(sel, val, fmt) {
