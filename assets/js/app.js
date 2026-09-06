@@ -970,6 +970,20 @@
 
   /* 携帯ではツールバーを畳んでメニューにまとめる */
   function openMenu() {
+    var v = (Store.state.view === 'vehicle') ? Store.selected() : null;
+
+    /* いま開いている車両への操作を先頭に置く */
+    var vehPart = '';
+    if (v) {
+      vehPart =
+        '<div class="menu-label">' + F.esc(vehicleTitle(v)) + '</div>' +
+        '<div class="menu-list" style="margin-bottom:12px">' +
+          (v.archived
+            ? '<button class="btn" data-vmenu="unarchive">稼働中に戻す</button>'
+            : '<button class="btn" data-vmenu="archive">この車両をアーカイブへ</button>') +
+        '</div>';
+    }
+
     var items = [
       ['btnUndo', '↶ 元に戻す'],
       ['btnRedo', '↷ やり直す'],
@@ -982,13 +996,24 @@
       var el = document.getElementById(it[0]);
       return el && !el.hidden;
     });
-    var body = '<div class="menu-list">' + items.map(function (it) {
-      var el = document.getElementById(it[0]);
-      return '<button class="btn" data-run="' + it[0] + '"' + (el.disabled ? ' disabled' : '') + '>' +
-        F.esc(it[1]) + '</button>';
-    }).join('') + '</div>';
+
+    var body = vehPart +
+      (v ? '<div class="menu-label">アプリ全体</div>' : '') +
+      '<div class="menu-list">' + items.map(function (it) {
+        var el = document.getElementById(it[0]);
+        return '<button class="btn" data-run="' + it[0] + '"' + (el.disabled ? ' disabled' : '') + '>' +
+          F.esc(it[1]) + '</button>';
+      }).join('') + '</div>';
+
     var ov = modal('メニュー', body, '<button class="btn" data-close>閉じる</button>');
     ov.addEventListener('click', function (e) {
+      var m = e.target.closest('[data-vmenu]');
+      if (m) {
+        ov.remove();
+        if (m.dataset.vmenu === 'archive') archiveVehicle(v);
+        else unarchiveVehicle(v);
+        return;
+      }
       var b = e.target.closest('[data-run]');
       if (!b) return;
       ov.remove();
