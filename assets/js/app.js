@@ -10,6 +10,23 @@
 
   function workers() { return Store.state.settings.workers; }
 
+  var showArchive = false;   /* 一覧をアーカイブ側に切り替えているか */
+
+  function vehiclesOf(archived) {
+    return Store.state.vehicles.filter(function (v) { return !!v.archived === !!archived; });
+  }
+
+  /* この端末が使っている保存容量 */
+  function storageBytes() {
+    try { return new Blob([JSON.stringify(Store.state)]).size; } catch (e) { return 0; }
+  }
+  function fmtBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
+    return (b / 1024 / 1024).toFixed(2) + ' MB';
+  }
+  var STORAGE_GUIDE = 5 * 1024 * 1024;
+
   function toast(msg) {
     var el = document.createElement('div');
     el.className = 'toast';
@@ -59,7 +76,7 @@
     var t = Calc.vehicleTotals(v, workers());
     var sub = [v.grade, v.color, v.year, v.engine].filter(Boolean).join('・');
     var st = Calc.normalizeStatus(v.status);
-    return '<article class="acct" data-open="' + v.id + '">' +
+    return '<article class="acct' + (v.archived ? ' arch' : '') + '" data-open="' + v.id + '">' +
       '<div class="acct-photo' + (v.photo ? '' : ' empty') + '"' + photoStyle(v) + '>' +
         '<span class="scrim"></span>' +
         '<span class="status s-' + F.esc(st) + '"><i></i>' + F.esc(st) + '</span>' +
@@ -102,24 +119,49 @@
 
   function renderHome() {
     var q = ($('#vehSearch').value || '').trim().toLowerCase();
-    var list = Store.state.vehicles.filter(function (v) {
+    var pool = vehiclesOf(showArchive);
+    var list = pool.filter(function (v) {
       return !q || vehicleLabel(v).toLowerCase().indexOf(q) >= 0;
     });
-    var all = Store.state.vehicles.reduce(function (a, v) {
-      return a + Calc.vehicleTotals(v, workers()).grandTotal;
-    }, 0);
+
+    var ws = workers();
+    var sum = { buy: 0, total: 0 };
+    pool.forEach(function (v) {
+      var t = Calc.vehicleTotals(v, ws);
+      sum.buy += t.purchasePrice;
+      sum.total += t.grandTotal;
+    });
+    var archivedCount = vehiclesOf(true).length;
 
     $('#detail').innerHTML =
       '<div class="home-head">' +
-        '<div><h2>車両アカウント</h2>' +
-        '<p class="hint">車両を選ぶと作業明細に入れます。</p></div>' +
-        '<div class="home-stat"><span>登録 ' + Store.state.vehicles.length + ' 台 ／ 原価合計</span>' +
-        '<b class="n">' + F.yen(all) + '</b></div>' +
+        '<div class="home-title">' +
+          '<h2>' + (showArchive ? 'アーカイブ' : '車両アカウント') + '</h2>' +
+          '<p class="hint">' + (showArchive
+            ? '仕上がった車両です。中身はそのまま見られます。'
+            : '車両を選ぶと作業明細に入れます。') + '</p>' +
+        '</div>' +
+        '<div class="home-stats">' +
+          '<div><span>' + (showArchive ? 'アーカイブ' : '稼働中') + '</span><b class="n">' + pool.length + '<small> 台</small></b></div>' +
+          '<div><span>仕入合計</span><b class="n">' + F.yen(sum.buy) + '</b></div>' +
+          '<div class="hi"><span>原価合計</span><b class="n">' + F.yen(sum.total) + '</b></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="home-tabs">' +
+        (showArchive
+          ? '<button class="btn" data-arch="off">← 稼働中の車両へ</button>'
+          : (archivedCount
+              ? '<button class="btn" data-arch="on">アーカイブ（' + archivedCount + ' 台）</button>'
+              : '')) +
       '</div>' +
       (list.length
         ? '<div class="acct-grid">' + list.map(accountCard).join('') + '</div>'
-        : '<div class="emptystate"><h2>' + (q ? '該当する車両がありません' : 'まだ車両がありません') + '</h2>' +
-          '<p>' + (q ? '検索条件を変えてみてください。' : '上の「＋ 車両を追加」から最初の1台を登録してください。') + '</p></div>');
+        : '<div class="emptystate"><h2>' +
+          (q ? '該当する車両がありません'
+             : (showArchive ? 'アーカイブは空です' : 'まだ車両がありません')) + '</h2>' +
+          '<p>' + (q ? '検索条件を変えてみてください。'
+                     : (showArchive ? '仕上がった車両をここへ送ると、一覧がすっきりします。'
+                                    : '上の「＋」から最初の1台を登録してください。')) + '</p></div>');
   }
 
   /* ---------------- サイドバー ---------------- */
@@ -127,6 +169,7 @@
   function renderSidebar() {
     var q = ($('#vehSearch').value || '').trim().toLowerCase();
     var list = Store.state.vehicles.filter(function (v) {
+      if (v.archived && v.id !== Store.state.selectedId) return false;
       if (!q) return true;
       return vehicleLabel(v).toLowerCase().indexOf(q) >= 0;
     });
@@ -145,9 +188,9 @@
 
     $('#vehList').innerHTML = html ||
       '<div class="hint" style="padding:14px 6px">該当する車両がありません</div>';
-    $('#vehCount').textContent = Store.state.vehicles.length + ' 台';
+    $('#vehCount').textContent = vehiclesOf(false).length + ' 台';
 
-    var all = Store.state.vehicles.reduce(function (a, v) {
+    var all = vehiclesOf(false).reduce(function (a, v) {
       return a + Calc.vehicleTotals(v, workers()).grandTotal;
     }, 0);
     $('#grandAll').innerHTML = '<b class="n">' + F.yen(all) + '</b>';
@@ -345,6 +388,9 @@
         field('メモ', 'memo', v.memo, { type: 'textarea', span: 6 }) +
       '</div></div>' +
       '<div class="veh-acts">' +
+        (v.archived
+          ? '<button class="btn sm" data-vact="unarchive">稼働中に戻す</button>'
+          : '<button class="btn sm" data-vact="archive">アーカイブへ</button>') +
         '<button class="btn sm" data-vact="dup">この車両を複製</button>' +
         '<button class="btn sm danger" data-vact="del">車両を削除</button>' +
       '</div></div></details>' +
@@ -413,7 +459,7 @@
     // サイドバーの金額も追随させる
     var card = $('.veh-card[data-veh="' + v.id + '"] .tot');
     if (card) card.innerHTML = '<small>総計</small><b class="n">' + F.yen(t.grandTotal) + '</b>';
-    var all = Store.state.vehicles.reduce(function (a, x) {
+    var all = vehiclesOf(false).reduce(function (a, x) {
       return a + Calc.vehicleTotals(x, ws).grandTotal;
     }, 0);
     $('#grandAll').innerHTML = '<b class="n">' + F.yen(all) + '</b>';
@@ -456,6 +502,8 @@
   }
 
   function goHome() {
+    var v = Store.selected();
+    if (v) showArchive = !!v.archived;
     setupFor = null;
     Store.state.view = 'home';
     Store.save();
@@ -607,6 +655,13 @@
   }
 
   function onDetailClick(e) {
+    var tab = e.target.closest('[data-arch]');
+    if (tab) {
+      showArchive = tab.dataset.arch === 'on';
+      renderHome();
+      window.scrollTo(0, 0);
+      return;
+    }
     var card = e.target.closest('[data-open]');
     if (card) { openVehicle(card.dataset.open); return; }
     if (e.target.closest('#photoBox')) { $('#photoInput').click(); return; }
@@ -628,6 +683,8 @@
     if (btn.dataset.vact) {
       if (btn.dataset.vact === 'dup') duplicateVehicle(v);
       else if (btn.dataset.vact === 'del') deleteVehicle(v);
+      else if (btn.dataset.vact === 'archive') archiveVehicle(v);
+      else if (btn.dataset.vact === 'unarchive') unarchiveVehicle(v);
       else if (btn.dataset.vact === 'photo') $('#photoInput').click();
       else if (btn.dataset.vact === 'photoDel') {
         if (confirm('この車両の写真を削除します。よろしいですか？')) setPhoto(v, '');
@@ -692,6 +749,67 @@
     if (f) { f.focus(); f.select(); }
   }
 
+  /* 写真を小さくして容量を空ける */
+  function shrinkPhoto(dataUrl, maxW, maxH, quality) {
+    return new Promise(function (resolve) {
+      if (!dataUrl) { resolve(''); return; }
+      var img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, maxW / img.width, maxH / img.height);
+        if (k >= 1) { resolve(dataUrl); return; }
+        var cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(img.width * k));
+        cv.height = Math.max(1, Math.round(img.height * k));
+        var cx = cv.getContext('2d');
+        cx.fillStyle = '#fff';
+        cx.fillRect(0, 0, cv.width, cv.height);
+        cx.drawImage(img, 0, 0, cv.width, cv.height);
+        try { resolve(cv.toDataURL('image/jpeg', quality || 0.7)); }
+        catch (e) { resolve(dataUrl); }
+      };
+      img.onerror = function () { resolve(dataUrl); };
+      img.src = dataUrl;
+    });
+  }
+
+  function archiveVehicle(v) {
+    var t = Calc.vehicleTotals(v, workers());
+    var body = '<p class="note" style="margin:0 0 12px">' +
+      '<b>' + F.esc(vehicleTitle(v)) + '</b>（原価総計 ' + F.yen(t.grandTotal) + '）を一覧から外します。<br>' +
+      '中身は消えません。アーカイブからいつでも見られますし、稼働中へ戻せます。</p>' +
+      (v.photo
+        ? '<label class="chk"><input type="checkbox" id="arcShrink" checked>' +
+          '<span>写真を小さくして容量を空ける<small>記録として見るには十分な大きさに縮めます</small></span></label>'
+        : '');
+    var ov = modal('アーカイブへ送る', body,
+      '<button class="btn" data-close>やめる</button>' +
+      '<button class="btn primary" id="arcGo">アーカイブへ</button>');
+    $('#arcGo', ov).addEventListener('click', function () {
+      var box = $('#arcShrink', ov);
+      var go = (box && box.checked) ? shrinkPhoto(v.photo, 640, 480, 0.7) : Promise.resolve(v.photo);
+      ov.remove();
+      go.then(function (photo) {
+        Store.mutate(null, function (st) {
+          v.archived = true;
+          v.photo = photo;
+          st.selectedId = null;
+          st.view = 'home';
+        });
+        setupFor = null;
+        showArchive = false;          /* 稼働中の一覧へ戻る */
+        renderAll();
+        window.scrollTo(0, 0);
+        toast('アーカイブしました。「アーカイブ」から見られます');
+      });
+    });
+  }
+
+  function unarchiveVehicle(v) {
+    Store.mutate(null, function () { v.archived = false; });
+    renderAll();
+    toast('稼働中に戻しました');
+  }
+
   function duplicateVehicle(v) {
     var copy = JSON.parse(JSON.stringify(v));
     copy.id = F.uid('v');
@@ -709,6 +827,7 @@
   function deleteVehicle(v) {
     if (!confirm('「' + vehicleTitle(v) + '」を削除します。\n明細もすべて消えます。よろしいですか？')) return;
     if (v.id === setupFor) setupFor = null;
+    showArchive = false;
     Store.mutate(null, function (s) {
       var i = s.vehicles.indexOf(v);
       s.vehicles.splice(i, 1);
@@ -1192,13 +1311,19 @@
         '</div>';
     } else if (!S || !S.enabled) {
       var i = backupInfo();
+      var used = storageBytes();
+      var pct = Math.min(100, Math.round(used / STORAGE_GUIDE * 100));
       body = '<dl class="kv">' +
         '<div><dt>保存先</dt><dd>この端末だけ</dd></div>' +
+        '<div><dt>使用量</dt><dd>' + fmtBytes(used) + ' <small style="color:var(--ink-weak)">/ 目安 5 MB（' + pct + '%）</small></dd></div>' +
         '<div><dt>最後のバックアップ</dt><dd style="font-size:11.5px">' +
           (i.at ? new Date(i.at).toLocaleString('ja-JP') +
                   (i.days ? '（' + i.days + '日前）' : '（今日）') : 'まだ取っていません') + '</dd></div>' +
         '<div><dt>その後の変更</dt><dd class="n">' + i.changes + ' 件</dd></div>' +
         '</dl>' +
+        (pct >= 70 ? '<p class="note" style="margin-top:10px;color:#ff9d92">' +
+          '容量が残り少なくなっています。仕上がった車両をアーカイブして写真を小さくするか、' +
+          'バックアップを取ってから古い車両を減らしてください。</p>' : '') +
         '<p class="note" style="margin-top:12px">データはこの端末の中だけにあります。' +
         'どこにも送られませんが、<b>端末を無くしたり、ブラウザのデータを消すと一緒に消えます。</b><br>' +
         '節目ごとにバックアップを取って、LINEやメールで自分宛に送っておくのが確実です。</p>' +

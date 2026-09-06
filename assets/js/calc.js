@@ -103,6 +103,7 @@
       year: '',
       engine: '',
       status: STATUSES[0],
+      archived: false,
       photo: '',
       purchasePrice: 0,
       hourlyRate: (settings && global.F.toNum(settings.hourlyRate)) || 5000,

@@ -47,6 +47,7 @@
       if (v.hourlyRate == null) v.hourlyRate = d.settings.hourlyRate;
       v.status = global.Calc.normalizeStatus(v.status);
       if (v.photo == null) v.photo = '';
+      v.archived = !!v.archived;
       v.rows.forEach(function (r) {
         if (!r.id) r.id = global.F.uid('r');
         if (!r.type) r.type = 'item';
